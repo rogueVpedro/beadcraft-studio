@@ -1266,7 +1266,9 @@ function drawScene() {
     ctx.strokeRect(ox + 8, oy + 8, 78, 24);
     ctx.fillStyle = "#251d16";
     ctx.font = "700 12px 'Microsoft YaHei UI', sans-serif";
-    ctx.fillText("原始图片", ox + 18, oy + 24);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("原始图片", ox + 47, oy + 20);
     ctx.restore();
     ox = state.panX + boardW + cell * 3;
   }
