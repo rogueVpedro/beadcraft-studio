@@ -1,7 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows.Forms;
+
+[assembly: AssemblyTitle("拼豆工坊 · BeadCraft Studio")]
+[assembly: AssemblyProduct("BeadCraft Studio (Rubber Hose Edition)")]
+[assembly: AssemblyVersion("2.1.0.0")]
+[assembly: AssemblyFileVersion("2.1.0.0")]
 
 namespace BeadCraftLauncher
 {

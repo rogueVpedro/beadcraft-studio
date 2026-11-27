@@ -3,28 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>拼豆工坊 · BeadCraft Studio</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23181C26'/%3E%3Ccircle cx='20' cy='20' r='10' fill='%23FF5A5F'/%3E%3Ccircle cx='20' cy='20' r='4' fill='%23181C26'/%3E%3Ccircle cx='44' cy='20' r='10' fill='%23FFD400'/%3E%3Ccircle cx='44' cy='20' r='4' fill='%23181C26'/%3E%3Ccircle cx='20' cy='44' r='10' fill='%2338BDF8'/%3E%3Ccircle cx='20' cy='44' r='4' fill='%23181C26'/%3E%3Ccircle cx='44' cy='44' r='10' fill='%234ADE80'/%3E%3Ccircle cx='44' cy='44' r='4' fill='%23181C26'/%3E%3C/svg%3E" />
+  <title>拼豆工坊 · BeadCraft Studio (Rubber Hose Edition)</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="256x256" href="/ui/rubber-hose/app-icon.png" />
   <link rel="stylesheet" href="/ui/styles.css" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
-    <!-- 顶部工作台导航栏 -->
+    <!-- 顶部 1930s 橡皮管动画赛璐璐导航栏 -->
     <header class="topbar">
       <div class="brand">
         <div class="brand-logo" aria-hidden="true">
-          <span class="b-dot d1"></span>
-          <span class="b-dot d2"></span>
-          <span class="b-dot d3"></span>
-          <span class="b-dot d4"></span>
+          <img src="/ui/rubber-hose/app-icon.png" alt="拼豆工坊橡皮管图标" width="38" height="38" />
         </div>
         <div class="brand-titles">
-          <h1>拼豆工坊 <span class="sub-en">BeadCraft Studio</span></h1>
+          <h1>拼豆工坊 <span class="sub-en">Rubber Hose Studio</span></h1>
         </div>
       </div>
 
       <div class="segmented-bar view-switcher" role="tablist" aria-label="画布渲染视图">
-        <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="ring" title="真实管状圆环拼豆立体效果">
+        <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="ring" title="手绘墨线管状圆环拼豆效果">
           <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.1"/></svg>
           <span>立体拼豆</span>
         </button>
@@ -43,128 +41,210 @@
       </div>
 
       <div class="topbar-actions">
-        <button type="button" id="btnCraftFocus" class="btn btn-ghost" aria-pressed="false" title="折叠左侧参数栏，放大图纸进入实操跟拼模式">
+        <button type="button" id="btnFilmMode" class="btn btn-ghost" aria-pressed="true" aria-label="切换1930年代复古胶片颗粒质感" title="开启或关闭 1930 年代老动画胶片颗粒与暗角">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M5 2.5v11M11 2.5v11M2 6h3M2 10h3M11 6h3M11 10h3"/></svg>
+          <span id="filmModeLabel" class="action-text-collapsible">胶片开</span>
+        </button>
+        <button type="button" id="btnOpenWechatBot" class="btn btn-ghost" aria-label="微信 ClawBot 扫码对话连接" title="手机微信扫码接入 ClawBot 对话智能体">
+          <span id="wechatStatusDot" class="status-dot offline" aria-hidden="true"></span>
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="4.6" height="4.6" rx="1"/><rect x="9.4" y="2" width="4.6" height="4.6" rx="1"/><rect x="2" y="9.4" width="4.6" height="4.6" rx="1"/><path d="M9.5 9.6h2v2m2.5-2v4.4h-4.5"/></svg>
+          <span class="action-text-collapsible">微信扫码</span>
+        </button>
+        <button type="button" id="btnOpenAgentConfig" class="btn btn-ghost" aria-label="配置自定义大模型与联网搜索" title="配置自定义大模型 API 与 Tavily 联网搜索密钥">
+          <span id="agentStatusDot" class="status-dot warn" aria-hidden="true"></span>
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M12.4 3.6l-1.2 1.2M4.8 11.2l-1.2 1.2"/></svg>
+          <span class="action-text-collapsible">模型与搜索</span>
+        </button>
+        <button type="button" id="btnCraftFocus" class="btn btn-ghost" aria-pressed="false" title="折叠左侧栏，放大图纸进入实操跟拼模式">
           <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M6 2.5v11"/></svg>
           <span id="craftFocusLabel">专注跟拼</span>
         </button>
         <button type="button" id="btnExportPng" class="btn btn-primary">
           <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5m0 0L5.2 7.2M8 10l2.8-2.8M3 12.8h10"/></svg>
-          <span>导出图纸 (PNG)</span>
+          <span>导出图纸</span>
         </button>
         <button type="button" id="btnExportXlsx" class="btn btn-secondary">
           <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.8"/><path d="M2.5 6.5h11M6.5 6.5v7"/></svg>
-          <span>配豆表 (.xlsx)</span>
+          <span>配豆表</span>
         </button>
       </div>
     </header>
 
     <!-- 三栏工作台主体 -->
     <main class="workspace" id="workspaceGrid">
-      <!-- 左侧配置舱（按因果顺序：先原图与抠图色卡，后画质档位与微调） -->
-      <aside class="panel panel-left" id="leftPanel" aria-label="原图与生成参数">
-        <!-- 区域 A：原图素材与主体预处理 -->
-        <section class="panel-section">
-          <div class="section-head">
-            <h2>原图与主体设置</h2>
-            <span id="imgDimBadge" class="meta-pill">准备就绪</span>
+      <!-- 左侧工作舱：集成官方 <hose-tabs> 活体文件夹标签切换器 -->
+      <aside class="panel panel-left" id="leftPanel" aria-label="生成方式与参数控制">
+        <div class="left-mode-header">
+          <div class="hose-tabs-stage">
+            <hose-tabs id="hoseLeftTabs" label="输入创作模式">
+              <option value="agent" selected>AI 对话找图</option>
+              <option value="manual">传图与调参</option>
+            </hose-tabs>
           </div>
+          <!-- 保留无障碍与后备同步标签组 -->
+          <div class="sr" role="tablist" aria-label="输入创作模式备份切换">
+            <button type="button" class="left-tab active" role="tab" aria-selected="true" data-leftmode="agent">AI 对话找图</button>
+            <button type="button" class="left-tab" role="tab" aria-selected="false" data-leftmode="manual">传图与调参</button>
+          </div>
+        </div>
 
-          <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="点击或拖拽上传图片，支持粘贴截图">
-            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif" hidden />
-            <div class="drop-preview-wrap">
-              <img id="sourceThumb" alt="当前原图缩略图" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+        <!-- 左栏视图 1：AI 对话智能体（一句话联网搜图推荐并上板） -->
+        <div id="agentPane" class="agent-pane">
+          <div class="agent-status-strip">
+            <span id="agentModelTag" class="agent-model-label">未配置模型密钥</span>
+            <div class="agent-strip-actions">
+              <button type="button" id="btnQuickWechat" class="text-action-btn">微信扫码</button>
+              <button type="button" id="btnQuickConfig" class="text-action-btn">配置接口</button>
             </div>
-            <div class="drop-copy">
-              <strong>选择图片 或 拖拽至此</strong>
-              <span>支持 PNG / JPG / WEBP 及 Ctrl+V 粘贴截图</span>
-            </div>
           </div>
 
-          <div class="sample-bar">
-            <span class="field-label">内置示例快速体验</span>
-            <div id="sampleButtons" class="sample-pills"></div>
-          </div>
-
-          <div class="form-group">
-            <label class="field-label" for="paletteSelect">拼豆品牌色卡标准</label>
-            <select id="paletteSelect" class="select-input"></select>
-          </div>
-
-          <label class="switch-row" for="chkRemoveBg">
-            <div class="switch-copy">
-              <strong>智能剔除外围纯色背景</strong>
-              <span>仅对画面主体生成拼豆，省去背景豆与工时</span>
-            </div>
-            <input type="checkbox" id="chkRemoveBg" />
-          </label>
-
-          <div id="bgTolWrap" class="tol-box hidden">
-            <div class="fine-tune-row">
-              <label for="bgTolRange">边缘去背范围：<strong id="bgTolVal" class="num">19</strong> <span class="hint-inline">（数值越大剔除相近浅底越多）</span></label>
-            </div>
-            <input type="range" id="bgTolRange" min="8" max="38" value="19" />
-          </div>
-        </section>
-
-        <!-- 区域 B：三档画质选择（同屏对比豆数与时长） -->
-        <section class="panel-section">
-          <div class="section-head">
-            <h2>选择画质档位</h2>
-            <span id="customModifiedTag" class="meta-pill accent hidden">已微调尺寸</span>
-          </div>
-
-          <div id="qualityCards" class="quality-list" role="radiogroup" aria-label="拼豆画质档位">
-            <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="simple">
-              <div class="tier-top">
-                <div class="tier-name-group">
-                  <span class="tier-title">简略</span>
-                  <span class="tier-badge">萌系挂件</span>
-                </div>
-                <span class="tier-time num" id="tierTime_simple">-- 分钟</span>
+          <div id="chatHistory" class="chat-history selectable" aria-live="polite">
+            <div class="chat-welcome">
+              <div class="vintage-banner-tag">RUBBER HOSE WORKSHOP · ACT I</div>
+              <h2><span>一句话生成专属拼豆图纸</span></h2>
+              <p>接入您指定的大模型与 Tavily 联网搜索，自动检索匹配素材、转换为三档拼豆图并测算制作时长。</p>
+              <div class="prompt-starters">
+                <button type="button" class="starter-chip" data-prompt="帮我找一个可爱的皮卡丘像素图，适合做钥匙扣小挂件，1小时内能拼完">皮卡丘小挂件 · 1小时内拼完</button>
+                <button type="button" class="starter-chip" data-prompt="推荐几张适合做桌面摆件的星露谷物语蓝色小鸡拼豆图，去掉背景">星露谷蓝色小鸡 · 自动去背景</button>
+                <button type="button" class="starter-chip" data-prompt="帮我搜几款吉伊卡哇乌萨奇的可爱插画生成高清拼豆图">乌萨奇可爱摆件 · 高清档推荐</button>
+                <button type="button" class="starter-chip" data-prompt="不要搜网图，直接帮我原创绘制一个像素风红色爱心魔法药水瓶拼豆图">原创绘制 · 像素爱心魔法药水</button>
               </div>
-              <div class="tier-stats num" id="tierStats_simple">加载中...</div>
-              <div class="tier-desc">提炼主体色块并合并近色，豆数少易上手</div>
-            </button>
-
-            <button type="button" class="tier-card active" role="radio" aria-checked="true" data-quality="hd">
-              <div class="tier-top">
-                <div class="tier-name-group">
-                  <span class="tier-title">高清</span>
-                  <span class="tier-badge">标准摆件</span>
-                </div>
-                <span class="tier-time num" id="tierTime_hd">-- 分钟</span>
-              </div>
-              <div class="tier-stats num" id="tierStats_hd">加载中...</div>
-              <div class="tier-desc">契合 2×2 块 29 格板，兼顾神态细节与效率</div>
-            </button>
-
-            <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="faithful">
-              <div class="tier-top">
-                <div class="tier-name-group">
-                  <span class="tier-title">还原</span>
-                  <span class="tier-badge">大师画幅</span>
-                </div>
-                <span class="tier-time num" id="tierTime_faithful">-- 分钟</span>
-              </div>
-              <div class="tier-stats num" id="tierStats_faithful">加载中...</div>
-              <div class="tier-desc">高密度网格配合感知抖动，细腻还原渐变层次</div>
-            </button>
-          </div>
-
-          <div class="fine-tune-box">
-            <div class="fine-tune-row">
-              <label for="customSizeRange">当前档位长边：<strong id="customSizeVal" class="num">58</strong> 颗</label>
-              <button id="btnResetSize" class="text-action-btn" type="button">恢复默认尺寸</button>
             </div>
-            <input type="range" id="customSizeRange" min="18" max="128" value="58" />
           </div>
-        </section>
+
+          <form id="agentChatForm" class="chat-composer">
+            <textarea
+              id="agentPromptInput"
+              class="chat-textarea"
+              rows="2"
+              placeholder="描述想要的图案、风格或期望拼豆时长（Enter 发送，或拍下方红钮 BOP!）..."
+              aria-label="输入拼豆需求描述"
+            ></textarea>
+            <div class="composer-footer">
+              <div class="hose-bop-wrap">
+                <hose-button id="hoseSendBtn" type="submit">发送生成拼豆方案</hose-button>
+                <span class="bop-caption">拍红钮生成!</span>
+              </div>
+              <button type="submit" id="btnSendPrompt" class="btn btn-primary send-btn">
+                <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.8 2.2L7.2 8.8M13.8 2.2l-4.2 11.6-2.4-5-5-2.4 11.6-4.2z"/></svg>
+                <span>发送生成</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 左栏视图 2：本地传图与三档画质精细调参（含官方灯泡开关 & 长号滑块） -->
+        <div id="manualPane" class="manual-pane hidden">
+          <!-- 区域 A：原图素材与主体预处理 -->
+          <section class="panel-section">
+            <div class="section-head">
+              <h2><span>原图与主体设置</span></h2>
+              <span id="imgDimBadge" class="meta-pill num">准备就绪</span>
+            </div>
+
+            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="点击或拖拽上传图片，支持粘贴截图">
+              <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif" hidden />
+              <div class="drop-preview-wrap">
+                <img id="sourceThumb" alt="当前原图缩略图" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+              </div>
+              <div class="drop-copy">
+                <strong>选择图片 或 拖拽至此</strong>
+                <span>支持 PNG / JPG / WEBP 及 Ctrl+V 粘贴截图</span>
+              </div>
+            </div>
+
+            <div class="sample-bar">
+              <span class="field-label">内置示例快速体验</span>
+              <div id="sampleButtons" class="sample-pills"></div>
+            </div>
+
+            <div class="form-group">
+              <label class="field-label" for="paletteSelect">拼豆品牌色卡标准</label>
+              <select id="paletteSelect" class="select-input"></select>
+            </div>
+
+            <!-- 官方 <hose-toggle> 灯泡人开关：开启智能抠除背景 -->
+            <div class="hose-switch-stage">
+              <div class="switch-copy">
+                <strong>智能剔除外围纯色背景</strong>
+                <span id="hoseToggleSaid">拨动右侧小灯泡，省去背景豆与工时</span>
+              </div>
+              <div class="hose-toggle-box">
+                <hose-toggle id="hoseRemoveBg" label="智能剔除外围纯色背景"></hose-toggle>
+                <input type="checkbox" id="chkRemoveBg" class="sr" tabindex="-1" aria-hidden="true" />
+              </div>
+            </div>
+
+            <div id="bgTolWrap" class="tol-box hidden">
+              <div class="fine-tune-row">
+                <label for="bgTolRange">边缘去背范围：<strong id="bgTolVal" class="num">19</strong> <span class="hint-inline">（越大剔除浅底越多）</span></label>
+              </div>
+              <input type="range" id="bgTolRange" min="8" max="38" value="19" />
+            </div>
+          </section>
+
+          <!-- 区域 B：三档画质选择 + 官方 <hose-slider> 铜管长号尺寸推杆 -->
+          <section class="panel-section">
+            <div class="section-head">
+              <h2><span>选择画质档位</span></h2>
+              <span id="customModifiedTag" class="meta-pill accent hidden">已微调尺寸</span>
+            </div>
+
+            <div id="qualityCards" class="quality-list" role="radiogroup" aria-label="拼豆画质档位">
+              <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="simple">
+                <div class="tier-top">
+                  <div class="tier-name-group">
+                    <span class="tier-title">简略</span>
+                    <span class="tier-badge">萌系挂件</span>
+                  </div>
+                  <span class="tier-time num" id="tierTime_simple">-- 分钟</span>
+                </div>
+                <div class="tier-stats num" id="tierStats_simple">加载中...</div>
+                <div class="tier-desc">提炼主体色块并合并近色，豆数少易上手</div>
+              </button>
+
+              <button type="button" class="tier-card active" role="radio" aria-checked="true" data-quality="hd">
+                <div class="tier-top">
+                  <div class="tier-name-group">
+                    <span class="tier-title">高清</span>
+                    <span class="tier-badge">标准摆件</span>
+                  </div>
+                  <span class="tier-time num" id="tierTime_hd">-- 分钟</span>
+                </div>
+                <div class="tier-stats num" id="tierStats_hd">加载中...</div>
+                <div class="tier-desc">契合 2×2 块 29 格板，兼顾神态细节与效率</div>
+              </button>
+
+              <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="faithful">
+                <div class="tier-top">
+                  <div class="tier-name-group">
+                    <span class="tier-title">还原</span>
+                    <span class="tier-badge">大师画幅</span>
+                  </div>
+                  <span class="tier-time num" id="tierTime_faithful">-- 分钟</span>
+                </div>
+                <div class="tier-stats num" id="tierStats_faithful">加载中...</div>
+                <div class="tier-desc">高密度网格配合感知抖动，细腻还原渐变层次</div>
+              </button>
+            </div>
+
+            <div class="fine-tune-box">
+              <div class="fine-tune-row">
+                <label for="customSizeRange">长号拉管定尺寸：<strong id="customSizeVal" class="num">58</strong> 颗</label>
+                <button id="btnResetSize" class="text-action-btn" type="button">恢复默认</button>
+              </div>
+              <div class="hose-slider-stage">
+                <hose-slider id="hoseSizeSlider" min="18" max="128" step="1" value="58" label="长边颗数"></hose-slider>
+                <input type="range" id="customSizeRange" class="sr" min="18" max="128" value="58" tabindex="-1" aria-hidden="true" />
+              </div>
+            </div>
+          </section>
+        </div>
       </aside>
 
-      <!-- 中央交互式图纸工作台（内嵌式顶栏，彻底杜绝窄屏遮挡两侧面板） -->
+      <!-- 中央交互式赛璐璐手绘图纸工作台 -->
       <section class="canvas-stage" aria-label="拼豆图纸交互画布">
         <div class="canvas-header">
-          <!-- 画笔与浏览工具组 -->
           <div class="segmented-bar tool-group" role="toolbar" aria-label="图纸编辑工具">
             <button type="button" class="seg-btn tool-btn active" data-tool="pan" title="拖拽平移与查看坐标 (快捷键 H，或按住空格临时平移)">
               <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12M8 2L6 4m2-2l2 2M8 14l-2-2m2 2l2-2"/></svg>
@@ -206,18 +286,24 @@
               <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4.5L2.5 7.5l3 3M3 7.5h6.5a3.5 3.5 0 1 1 0 7H7.5"/></svg>
               <span>撤销</span>
             </button>
-            <button type="button" id="btnRedo" class="bar-icon-btn" disabled title="重做 (Ctrl+Y)">
+            <button type="button" id="btnRedo" class="bar-icon-btn" disabled aria-label="重做上一笔修改" title="重做 (Ctrl+Y)">
               <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5l3 3-3 3M13 7.5H6.5a3.5 3.5 0 1 0 0 7h2"/></svg>
             </button>
           </div>
 
-          <!-- 辅助线、透白实景底板切换与缩放 -->
+          <!-- 画布快捷画质切换、辅助线、底板切换与缩放 -->
           <div class="canvas-Quick-controls">
-            <button type="button" id="btnBoard29Toggle" class="toggle-chip active" aria-pressed="true" title="显示或隐藏 29×29 标准大拼板分界线">29格分板线</button>
+            <div class="segmented-bar quick-tier-pills" role="group" aria-label="画布快捷画质档位">
+              <button type="button" class="seg-btn quick-tier-btn" data-qtier="simple" title="切换当前图案至简略档">简略</button>
+              <button type="button" class="seg-btn quick-tier-btn active" data-qtier="hd" title="切换当前图案至高清档">高清</button>
+              <button type="button" class="seg-btn quick-tier-btn" data-qtier="faithful" title="切换当前图案至还原档">还原</button>
+            </div>
+
+            <button type="button" id="btnBoard29Toggle" class="toggle-chip active" aria-pressed="true" title="显示或隐藏 29×29 标准大拼板分界线">29格线</button>
             <button type="button" id="btnRulerToggle" class="toggle-chip active" aria-pressed="true" title="显示或隐藏行列数字坐标尺">坐标尺</button>
-            <button type="button" id="btnPegboardMat" class="toggle-chip" aria-pressed="false" title="切换透白实景拼板底色与深色高对比底色，便于核对浅色/深色拼豆">
+            <button type="button" id="btnPegboardMat" class="toggle-chip active" aria-pressed="true" title="切换复古羊皮纸拼板与深墨高对比衬底">
               <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M12.4 3.6l-1.3 1.3M4.9 11.1l-1.3 1.3"/></svg>
-              <span id="matModeLabel">实景白板</span>
+              <span id="matModeLabel">深墨衬板</span>
             </button>
 
             <div class="zoom-group">
@@ -239,15 +325,15 @@
         </div>
 
         <!-- 主画布视口 -->
-        <div id="canvasViewport" class="canvas-viewport">
+        <div id="canvasViewport" class="canvas-viewport daylight-mat">
           <canvas id="beadCanvas"></canvas>
           <div id="loadingBadge" class="loading-pill hidden" role="status" aria-live="polite">
             <span class="spinner-mini"></span>
-            <span>正在更新拼豆矩阵...</span>
+            <span>正在手绘拼豆矩阵...</span>
           </div>
         </div>
 
-        <!-- 底部坐标与状态栏（支持文本复制） -->
+        <!-- 底部坐标与状态栏 -->
         <footer class="canvas-statusbar">
           <div id="hoverInfo" class="hover-info selectable num">
             悬停查看拼豆【行列坐标 · 标准色号 · 所属 29 格拼板】；按住空格键可随时拖拽画布
@@ -258,18 +344,24 @@
         </footer>
       </section>
 
-      <!-- 右侧时长预估与色号跟拼清单 -->
+      <!-- 右侧橡皮管拼豆精灵、时长预估与色号跟拼清单 -->
       <aside class="panel panel-right" aria-label="拼豆时长评估与材料清单">
-        <!-- 区域 1：拼豆时长预估（无 eyebrow，清晰层级与等宽数字） -->
         <section class="panel-section time-section">
           <div class="section-head">
-            <h2>预估制作时长</h2>
+            <h2><span>预估制作时长</span></h2>
             <span id="diffBadge" class="difficulty-pill">适中耐玩</span>
           </div>
 
-          <div class="duration-display-row">
-            <strong class="hero-duration num" id="heroDuration">-- 分钟</strong>
-            <span id="speedHint" class="speed-caption num">约 -- 颗/分钟</span>
+          <!-- 专属 Rubber Hose 拼豆小精灵 (<hose-bead-mascot>) + 核心工时读数 -->
+          <div class="mascot-duration-stage">
+            <div class="mascot-figure">
+              <hose-bead-mascot id="hoseBeadMascot" label="点击互动拼豆小精灵"></hose-bead-mascot>
+            </div>
+            <div class="duration-right-col">
+              <strong class="hero-duration num" id="heroDuration">-- 分钟</strong>
+              <span id="speedHint" class="speed-caption num">约 -- 颗/分钟</span>
+              <p id="mascotSpeech" class="mascot-speech">嘿！选颗顺眼的豆子，咱开摆！</p>
+            </div>
           </div>
 
           <div class="segmented-bar skill-tabs" role="tablist" aria-label="玩家熟练度">
@@ -278,7 +370,6 @@
             <button type="button" class="seg-btn skill-tab" role="tab" aria-selected="false" data-skill="pro">拼豆老手</button>
           </div>
 
-          <!-- 无嵌套卡片的紧凑分隔指标网格 -->
           <div class="metrics-strip">
             <div class="metric-cell">
               <span class="m-label">总用豆量</span>
@@ -306,8 +397,8 @@
 
           <div class="breakdown-block">
             <div class="breakdown-head">
-              <span>四阶段工时拆解</span>
-              <span id="scatterHint" class="num">孤立散点豆 0.0%</span>
+              <span>四阶段工时温度计</span>
+              <span id="scatterHint" class="num">散点率 0.0%</span>
             </div>
             <div class="stacked-bar" aria-hidden="true">
               <div class="sb-seg seg-prep" id="barPrep" style="width:15%"></div>
@@ -323,17 +414,15 @@
             </div>
           </div>
 
-          <!-- 完整全边框排期提示（彻底移除单侧左边框反模式） -->
           <div class="advice-callout">
             <svg class="ui-icon callout-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.8M8 4.8h.01"/></svg>
-            <p id="sessionAdvice">上传图片后将自动结合同色连片度与散点比例定制分板排期建议。</p>
+            <p id="sessionAdvice">上传图片或向左侧 AI 助手描述想法，将自动生成拼豆方案并定制分板排期建议。</p>
           </div>
         </section>
 
-        <!-- 区域 2：色号用量与独立跟拼/取色控制 -->
         <section class="panel-section bom-section">
           <div class="section-head">
-            <h2>色号材料与跟拼清单</h2>
+            <h2><span>色号材料与跟拼清单</span></h2>
             <span id="bomCountTag" class="meta-pill num">0 色</span>
           </div>
 
@@ -353,7 +442,188 @@
     </main>
   </div>
 
+  <!-- 原生 <dialog>：自定义大模型与 Tavily 联网搜索配置面板 -->
+  <dialog id="agentConfigDialog" class="config-dialog" aria-labelledby="cfgDialogTitle" data-impeccable-ignore="hard-offset-shadow">
+    <form id="agentConfigForm" method="dialog" class="config-form">
+      <div class="dialog-header">
+        <h2 id="cfgDialogTitle">配置自定义大模型与 Tavily 联网搜索</h2>
+        <button type="button" id="btnCloseConfigIcon" class="bar-icon-btn" aria-label="关闭配置窗口">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="cfg-block">
+          <div class="cfg-block-head">
+            <h3>大模型接口 (LLM)</h3>
+            <button type="button" id="btnTestLlm" class="text-action-btn">测试模型连通性</button>
+          </div>
+
+          <div class="cfg-grid-2">
+            <div class="cfg-field">
+              <label for="cfgPresetSelect">常用服务商快速预设</label>
+              <select id="cfgPresetSelect" class="select-input"></select>
+            </div>
+            <div class="cfg-field">
+              <label for="cfgProtocolSelect">接口协议格式</label>
+              <select id="cfgProtocolSelect" class="select-input">
+                <option value="openai">OpenAI 兼容接口 (/chat/completions)</option>
+                <option value="gemini">Google Gemini 原生接口</option>
+                <option value="anthropic">Anthropic Claude 接口</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cfg-grid-2">
+            <div class="cfg-field">
+              <label for="cfgBaseUrl">API Base URL</label>
+              <input type="url" id="cfgBaseUrl" class="compact-input" placeholder="https://api.deepseek.com/v1" required />
+            </div>
+            <div class="cfg-field">
+              <label for="cfgModelName">模型名称 (Model ID)</label>
+              <input type="text" id="cfgModelName" class="compact-input" placeholder="deepseek-chat / qwen-plus / gpt-4o-mini" required />
+            </div>
+          </div>
+
+          <div class="cfg-field">
+            <label for="cfgApiKey">大模型 API Key <span id="cfgLlmSavedHint" class="saved-key-hint"></span></label>
+            <input type="password" id="cfgApiKey" class="compact-input" placeholder="输入 sk-... 密钥（仅保存在本机 .agent_config.json）" autocomplete="off" />
+          </div>
+
+          <div id="llmTestResult" class="test-feedback hidden"></div>
+        </div>
+
+        <div class="cfg-block">
+          <div class="cfg-block-head">
+            <h3>Tavily 联网搜索与图片检索</h3>
+            <button type="button" id="btnTestTavily" class="text-action-btn">测试 Tavily 搜索</button>
+          </div>
+
+          <div class="cfg-grid-2">
+            <div class="cfg-field">
+              <label for="cfgTavilyKey">Tavily API Key <span id="cfgTavilySavedHint" class="saved-key-hint"></span></label>
+              <input type="password" id="cfgTavilyKey" class="compact-input" placeholder="输入 tvly-... 密钥（可在 tavily.com 获取）" autocomplete="off" />
+            </div>
+            <div class="cfg-field">
+              <label for="cfgTavilyDepth">Tavily 检索深度</label>
+              <select id="cfgTavilyDepth" class="select-input">
+                <option value="basic">Basic（极速图文检索 · 推荐）</option>
+                <option value="advanced">Advanced（深度网页语义检索）</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="switch-row compact-switch" for="cfgBackupImg">
+            <div class="switch-copy">
+              <strong>启用防盗链备用图源自动补齐</strong>
+              <span>当部分网页原图防盗链拒绝下载时，自动补充同主题可用参考图</span>
+            </div>
+            <input type="checkbox" id="cfgBackupImg" checked />
+          </label>
+
+          <div id="tavilyTestResult" class="test-feedback hidden"></div>
+        </div>
+
+        <div class="cfg-block">
+          <div class="cfg-grid-2">
+            <div class="cfg-field">
+              <label for="cfgProxyMode">外网请求代理策略</label>
+              <select id="cfgProxyMode" class="select-input">
+                <option value="system">跟随 Windows 系统代理（兼容 Clash 等）</option>
+                <option value="none">直连无代理（适合国内直连模型）</option>
+                <option value="custom">自定义代理服务器地址</option>
+              </select>
+            </div>
+            <div class="cfg-field" id="cfgCustomProxyField">
+              <label for="cfgCustomProxy">自定义代理地址</label>
+              <input type="text" id="cfgCustomProxy" class="compact-input" placeholder="http://127.0.0.1:7890" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button type="button" id="btnCancelConfig" class="btn btn-secondary">取消</button>
+        <button type="submit" id="btnSaveConfig" class="btn btn-primary">保存配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 原生 <dialog>：腾讯官方微信 ClawBot 扫码对话连接面板 -->
+  <dialog id="wechatClawDialog" class="config-dialog wechat-dialog" aria-labelledby="wechatDialogTitle" data-impeccable-ignore="hard-offset-shadow">
+    <div class="config-form">
+      <div class="dialog-header">
+        <h2 id="wechatDialogTitle">微信 ClawBot 扫码连接桌面智能体</h2>
+        <button type="button" id="btnCloseWechatIcon" class="bar-icon-btn" aria-label="关闭微信连接窗口">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="cfg-block wechat-status-bar">
+          <div class="wechat-status-left">
+            <span id="wechatStateBadge" class="wechat-badge">未连接</span>
+            <span id="wechatBotMeta" class="wechat-meta num">官方 iLink 通道 · 已处理 0 条消息</span>
+          </div>
+          <div class="wechat-status-actions">
+            <button type="button" id="btnRefreshWechatQr" class="text-action-btn">刷新二维码</button>
+            <button type="button" id="btnDisconnectWechat" class="text-action-btn danger-text-btn hidden">断开连接</button>
+          </div>
+        </div>
+
+        <div id="wechatQrSection" class="cfg-block">
+          <div class="wechat-qr-layout">
+            <div class="wechat-qr-frame">
+              <img id="wechatQrImg" alt="微信 ClawBot 扫码二维码" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+              <div id="wechatQrLoading" class="wechat-qr-mask">正在获取官方二维码...</div>
+            </div>
+
+            <div class="wechat-guide">
+              <p id="wechatLiveHint" class="wechat-live-hint">请使用手机微信扫描左侧二维码（需微信 8.0.70+ 开启 ClawBot 插件）</p>
+              <ul class="wechat-feature-list">
+                <li>手机微信直接发文字或语音，自动调用大模型与 Tavily 联网检索推荐拼豆方案</li>
+                <li>手机相册直接发照片或表情包，自动转换简略、高清、还原三档拼豆图纸</li>
+                <li>生成方案实时同步铺设到电脑大画布，并将带色号高清施工图纸直接发回手机微信</li>
+              </ul>
+            </div>
+          </div>
+
+          <div id="wechatVerifyWrap" class="wechat-verify-row hidden">
+            <label for="wechatVerifyInput" class="wechat-verify-label">手机配对码</label>
+            <input type="text" id="wechatVerifyInput" class="compact-input num" placeholder="输入手机微信界面显示的配对数字..." autocomplete="off" />
+            <button type="button" id="btnSubmitVerifyCode" class="btn btn-primary">提交配对码</button>
+          </div>
+        </div>
+
+        <div id="wechatConnectedSection" class="cfg-block wechat-connected-panel hidden">
+          <h3>手机微信已实时连通拼豆工坊桌面智能体</h3>
+          <p id="wechatConnectedDetail">现在可在手机微信 ClawBot 聊天窗直接发送一句话需求（如“找个1小时内拼完的皮卡丘挂件”）、发送语音或相册原图，电脑主画布将实时同步更新，并自动将带色号高清施工图纸发回您的微信。</p>
+          <div id="wechatBoundIds" class="wechat-bound-ids num selectable">在线监听中</div>
+        </div>
+
+        <div id="wechatErrorBox" class="test-feedback error hidden"></div>
+      </div>
+
+      <div class="dialog-footer">
+        <button type="button" id="btnCloseWechatFooter" class="btn btn-secondary">关闭窗口</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 官方 <hose-toast> 蹦跳烤面包机通知员 + 清晰中文横幅提示 -->
+  <hose-toast id="hoseToaster" duration="3.4"></hose-toast>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- 1930s 老动画胶片颗粒、灰尘划痕与暗角叠层（遵循 rubber-hose-ui 画廊设计，可随时开关） -->
+  <div id="filmOverlay" class="film" aria-hidden="true">
+    <div class="grain"></div>
+    <canvas class="dust"></canvas>
+    <div class="vig"></div>
+  </div>
+
+  <!-- 按 rubber-hose-ui SKILL.md 规范通过普通 <script> 标签依次加载共享橡皮管内核与独立卡通角色控件 -->
+  <script src="/ui/rubber-hose/tabs.js"></script>
+  <script src="/ui/rubber-hose/toggle.js"></script>
+  <script src="/ui/rubber-hose/slider.js"></script>
+  <script src="/ui/rubber-hose/button.js"></script>
+  <script src="/ui/rubber-hose/toast.js"></script>
+  <script src="/ui/rubber-hose/bead-mascot.js"></script>
   <script src="/ui/main.js"></script>
 </body>
 </html>
