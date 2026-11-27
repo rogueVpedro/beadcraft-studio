@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>拼豆工坊 · BeadCraft Studio</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23181C26'/%3E%3Ccircle cx='20' cy='20' r='10' fill='%23FF5A5F'/%3E%3Ccircle cx='20' cy='20' r='4' fill='%23181C26'/%3E%3Ccircle cx='44' cy='20' r='10' fill='%23FFD400'/%3E%3Ccircle cx='44' cy='20' r='4' fill='%23181C26'/%3E%3Ccircle cx='20' cy='44' r='10' fill='%2338BDF8'/%3E%3Ccircle cx='20' cy='44' r='4' fill='%23181C26'/%3E%3Ccircle cx='44' cy='44' r='10' fill='%234ADE80'/%3E%3Ccircle cx='44' cy='44' r='4' fill='%23181C26'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <div id="appShell" class="app-shell">
+    <!-- 顶部工作台导航栏 -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <span class="b-dot d1"></span>
+          <span class="b-dot d2"></span>
+          <span class="b-dot d3"></span>
+          <span class="b-dot d4"></span>
+        </div>
+        <div class="brand-titles">
+          <h1>拼豆工坊 <span class="sub-en">BeadCraft Studio</span></h1>
+        </div>
+      </div>
+
+      <div class="segmented-bar view-switcher" role="tablist" aria-label="画布渲染视图">
+        <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="ring" title="真实管状圆环拼豆立体效果">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.1"/></svg>
+          <span>立体拼豆</span>
+        </button>
+        <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="code" title="显示每颗豆子的标准色号，适合实操摆豆">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5L4.2 13.5M11.8 2.5L10.5 13.5M2.5 6h11M2 10h11"/></svg>
+          <span>施工色号</span>
+        </button>
+        <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="flat" title="模拟双面熨烫融合后的像素画效果">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 8h11M8 2.5v11"/></svg>
+          <span>熨烫成品</span>
+        </button>
+        <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="compare" title="原图与当前拼豆图左右同屏对比">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M8 2.5v11"/></svg>
+          <span>原图对比</span>
+        </button>
+      </div>
+
+      <div class="topbar-actions">
+        <button type="button" id="btnCraftFocus" class="btn btn-ghost" aria-pressed="false" title="折叠左侧参数栏，放大图纸进入实操跟拼模式">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8"/><path d="M6 2.5v11"/></svg>
+          <span id="craftFocusLabel">专注跟拼</span>
+        </button>
+        <button type="button" id="btnExportPng" class="btn btn-primary">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7.5m0 0L5.2 7.2M8 10l2.8-2.8M3 12.8h10"/></svg>
+          <span>导出图纸 (PNG)</span>
+        </button>
+        <button type="button" id="btnExportXlsx" class="btn btn-secondary">
+          <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.8"/><path d="M2.5 6.5h11M6.5 6.5v7"/></svg>
+          <span>配豆表 (.xlsx)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 三栏工作台主体 -->
+    <main class="workspace" id="workspaceGrid">
+      <!-- 左侧配置舱（按因果顺序：先原图与抠图色卡，后画质档位与微调） -->
+      <aside class="panel panel-left" id="leftPanel" aria-label="原图与生成参数">
+        <!-- 区域 A：原图素材与主体预处理 -->
+        <section class="panel-section">
+          <div class="section-head">
+            <h2>原图与主体设置</h2>
+            <span id="imgDimBadge" class="meta-pill">准备就绪</span>
+          </div>
+
+          <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="点击或拖拽上传图片，支持粘贴截图">
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif" hidden />
+            <div class="drop-preview-wrap">
+              <img id="sourceThumb" alt="当前原图缩略图" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+            </div>
+            <div class="drop-copy">
+              <strong>选择图片 或 拖拽至此</strong>
+              <span>支持 PNG / JPG / WEBP 及 Ctrl+V 粘贴截图</span>
+            </div>
+          </div>
+
+          <div class="sample-bar">
+            <span class="field-label">内置示例快速体验</span>
+            <div id="sampleButtons" class="sample-pills"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="field-label" for="paletteSelect">拼豆品牌色卡标准</label>
+            <select id="paletteSelect" class="select-input"></select>
+          </div>
+
+          <label class="switch-row" for="chkRemoveBg">
+            <div class="switch-copy">
+              <strong>智能剔除外围纯色背景</strong>
+              <span>仅对画面主体生成拼豆，省去背景豆与工时</span>
+            </div>
+            <input type="checkbox" id="chkRemoveBg" />
+          </label>
+
+          <div id="bgTolWrap" class="tol-box hidden">
+            <div class="fine-tune-row">
+              <label for="bgTolRange">边缘去背范围：<strong id="bgTolVal" class="num">19</strong> <span class="hint-inline">（数值越大剔除相近浅底越多）</span></label>
+            </div>
+            <input type="range" id="bgTolRange" min="8" max="38" value="19" />
+          </div>
+        </section>
+
+        <!-- 区域 B：三档画质选择（同屏对比豆数与时长） -->
+        <section class="panel-section">
+          <div class="section-head">
+            <h2>选择画质档位</h2>
+            <span id="customModifiedTag" class="meta-pill accent hidden">已微调尺寸</span>
+          </div>
+
+          <div id="qualityCards" class="quality-list" role="radiogroup" aria-label="拼豆画质档位">
+            <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="simple">
+              <div class="tier-top">
+                <div class="tier-name-group">
+                  <span class="tier-title">简略</span>
+                  <span class="tier-badge">萌系挂件</span>
+                </div>
+                <span class="tier-time num" id="tierTime_simple">-- 分钟</span>
+              </div>
+              <div class="tier-stats num" id="tierStats_simple">加载中...</div>
+              <div class="tier-desc">提炼主体色块并合并近色，豆数少易上手</div>
+            </button>
+
+            <button type="button" class="tier-card active" role="radio" aria-checked="true" data-quality="hd">
+              <div class="tier-top">
+                <div class="tier-name-group">
+                  <span class="tier-title">高清</span>
+                  <span class="tier-badge">标准摆件</span>
+                </div>
+                <span class="tier-time num" id="tierTime_hd">-- 分钟</span>
+              </div>
+              <div class="tier-stats num" id="tierStats_hd">加载中...</div>
+              <div class="tier-desc">契合 2×2 块 29 格板，兼顾神态细节与效率</div>
+            </button>
+
+            <button type="button" class="tier-card" role="radio" aria-checked="false" data-quality="faithful">
+              <div class="tier-top">
+                <div class="tier-name-group">
+                  <span class="tier-title">还原</span>
+                  <span class="tier-badge">大师画幅</span>
+                </div>
+                <span class="tier-time num" id="tierTime_faithful">-- 分钟</span>
+              </div>
+              <div class="tier-stats num" id="tierStats_faithful">加载中...</div>
+              <div class="tier-desc">高密度网格配合感知抖动，细腻还原渐变层次</div>
+            </button>
+          </div>
+
+          <div class="fine-tune-box">
+            <div class="fine-tune-row">
+              <label for="customSizeRange">当前档位长边：<strong id="customSizeVal" class="num">58</strong> 颗</label>
+              <button id="btnResetSize" class="text-action-btn" type="button">恢复默认尺寸</button>
+            </div>
+            <input type="range" id="customSizeRange" min="18" max="128" value="58" />
+          </div>
+        </section>
+      </aside>
+
+      <!-- 中央交互式图纸工作台（内嵌式顶栏，彻底杜绝窄屏遮挡两侧面板） -->
+      <section class="canvas-stage" aria-label="拼豆图纸交互画布">
+        <div class="canvas-header">
+          <!-- 画笔与浏览工具组 -->
+          <div class="segmented-bar tool-group" role="toolbar" aria-label="图纸编辑工具">
+            <button type="button" class="seg-btn tool-btn active" data-tool="pan" title="拖拽平移与查看坐标 (快捷键 H，或按住空格临时平移)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12M8 2L6 4m2-2l2 2M8 14l-2-2m2 2l2-2"/></svg>
+              <span>浏览</span>
+            </button>
+            <button type="button" class="seg-btn tool-btn" data-tool="brush" title="点涂修改拼豆颜色 (快捷键 B)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.8 2.2l2 2-7.6 7.6-2.8.8.8-2.8 7.6-7.6z"/></svg>
+              <span>改色笔</span>
+            </button>
+            <button type="button" class="seg-btn tool-btn" data-tool="eraser" title="擦除单颗拼豆并实时扣减工时 (快捷键 E)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3.2l6.3 6.3-4.2 4.2H4.2L2 11.5l4.5-8.3zM3.5 13.7h10"/></svg>
+              <span>橡皮擦</span>
+            </button>
+            <button type="button" class="seg-btn tool-btn" data-tool="picker" title="吸取画布上某颗拼豆的色号 (快捷键 I)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3-1.8 1.8-3-3 1.8-1.8zM8.2 4.8l3 3-5.7 5.7H2.5v-3l5.7-5.7z"/></svg>
+              <span>吸管</span>
+            </button>
+          </div>
+
+          <!-- 当前画笔色号指示器 + 全色卡选择浮层 -->
+          <div class="brush-chip-wrap">
+            <button type="button" id="btnBrushColor" class="brush-chip" aria-haspopup="dialog" aria-expanded="false" title="当前改色笔色号（点击可从完整色卡中任选颜色）">
+              <span id="brushSwatchDot" class="brush-swatch-dot"></span>
+              <span id="brushColorCode" class="num">H01 纯白</span>
+              <svg class="ui-icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+            </button>
+
+            <div id="palettePopover" class="palette-popover hidden" role="dialog" aria-label="选择画笔拼豆色号">
+              <div class="popover-search-row">
+                <input type="search" id="paletteSearchInput" class="compact-input" placeholder="搜索全部色号或颜色名 (如 F02 / 樱花粉)..." />
+              </div>
+              <div id="fullPaletteGrid" class="full-palette-grid"></div>
+            </div>
+          </div>
+
+          <!-- 撤销 / 重做 -->
+          <div class="history-group">
+            <button type="button" id="btnUndo" class="bar-icon-btn" disabled title="撤销上一笔涂改 (Ctrl+Z)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4.5L2.5 7.5l3 3M3 7.5h6.5a3.5 3.5 0 1 1 0 7H7.5"/></svg>
+              <span>撤销</span>
+            </button>
+            <button type="button" id="btnRedo" class="bar-icon-btn" disabled title="重做 (Ctrl+Y)">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5l3 3-3 3M13 7.5H6.5a3.5 3.5 0 1 0 0 7h2"/></svg>
+            </button>
+          </div>
+
+          <!-- 辅助线、透白实景底板切换与缩放 -->
+          <div class="canvas-Quick-controls">
+            <button type="button" id="btnBoard29Toggle" class="toggle-chip active" aria-pressed="true" title="显示或隐藏 29×29 标准大拼板分界线">29格分板线</button>
+            <button type="button" id="btnRulerToggle" class="toggle-chip active" aria-pressed="true" title="显示或隐藏行列数字坐标尺">坐标尺</button>
+            <button type="button" id="btnPegboardMat" class="toggle-chip" aria-pressed="false" title="切换透白实景拼板底色与深色高对比底色，便于核对浅色/深色拼豆">
+              <svg class="ui-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M12.4 3.6l-1.3 1.3M4.9 11.1l-1.3 1.3"/></svg>
+              <span id="matModeLabel">实景白板</span>
+            </button>
+
+            <div class="zoom-group">
+              <button type="button" id="btnZoomOut" class="bar-icon-btn" aria-label="缩小画布" title="缩小 (−)">−</button>
+              <span id="zoomLabel" class="zoom-readout num">100%</span>
+              <button type="button" id="btnZoomIn" class="bar-icon-btn" aria-label="放大画布" title="放大 (+)">+</button>
+              <button type="button" id="btnFitView" class="bar-icon-btn" title="居中适应窗口 (快捷键 0)">适应</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 单色高亮跟拼状态条 -->
+        <div id="spotlightBanner" class="spotlight-banner hidden" role="status" aria-live="polite">
+          <div class="spotlight-info">
+            <span id="spotlightSwatch" class="brush-swatch-dot"></span>
+            <span id="spotlightText">正在单色高亮跟拼：F02 正红</span>
+          </div>
+          <button id="btnClearSpotlight" type="button" class="spotlight-exit-btn">显示全部颜色 (Esc)</button>
+        </div>
+
+        <!-- 主画布视口 -->
+        <div id="canvasViewport" class="canvas-viewport">
+          <canvas id="beadCanvas"></canvas>
+          <div id="loadingBadge" class="loading-pill hidden" role="status" aria-live="polite">
+            <span class="spinner-mini"></span>
+            <span>正在更新拼豆矩阵...</span>
+          </div>
+        </div>
+
+        <!-- 底部坐标与状态栏（支持文本复制） -->
+        <footer class="canvas-statusbar">
+          <div id="hoverInfo" class="hover-info selectable num">
+            悬停查看拼豆【行列坐标 · 标准色号 · 所属 29 格拼板】；按住空格键可随时拖拽画布
+          </div>
+          <div id="boardSummaryTag" class="board-summary-tag num">
+            网格 -- × --
+          </div>
+        </footer>
+      </section>
+
+      <!-- 右侧时长预估与色号跟拼清单 -->
+      <aside class="panel panel-right" aria-label="拼豆时长评估与材料清单">
+        <!-- 区域 1：拼豆时长预估（无 eyebrow，清晰层级与等宽数字） -->
+        <section class="panel-section time-section">
+          <div class="section-head">
+            <h2>预估制作时长</h2>
+            <span id="diffBadge" class="difficulty-pill">适中耐玩</span>
+          </div>
+
+          <div class="duration-display-row">
+            <strong class="hero-duration num" id="heroDuration">-- 分钟</strong>
+            <span id="speedHint" class="speed-caption num">约 -- 颗/分钟</span>
+          </div>
+
+          <div class="segmented-bar skill-tabs" role="tablist" aria-label="玩家熟练度">
+            <button type="button" class="seg-btn skill-tab" role="tab" aria-selected="false" data-skill="beginner">新手入门</button>
+            <button type="button" class="seg-btn skill-tab active" role="tab" aria-selected="true" data-skill="standard">日常玩家</button>
+            <button type="button" class="seg-btn skill-tab" role="tab" aria-selected="false" data-skill="pro">拼豆老手</button>
+          </div>
+
+          <!-- 无嵌套卡片的紧凑分隔指标网格 -->
+          <div class="metrics-strip">
+            <div class="metric-cell">
+              <span class="m-label">总用豆量</span>
+              <strong class="m-val num" id="metricTotalBeads">-- 颗</strong>
+            </div>
+            <div class="metric-cell">
+              <span class="m-label">色号种类</span>
+              <strong class="m-val num" id="metricUniqueColors">-- 种</strong>
+            </div>
+            <div class="metric-cell">
+              <span class="m-label">29格标准板</span>
+              <strong class="m-val num" id="metricBoards">-- 块</strong>
+            </div>
+            <div class="metric-cell">
+              <div class="m-label-row">
+                <span class="m-label">尺寸</span>
+                <div class="spec-inline-toggle" role="group" aria-label="拼豆直径规格">
+                  <button type="button" class="spec-mini-btn active" data-spec="mini_26mm" title="2.6mm mini融合小豆">2.6mm</button>
+                  <button type="button" class="spec-mini-btn" data-spec="standard_50mm" title="5.0mm 标准大豆">5mm</button>
+                </div>
+              </div>
+              <strong class="m-val num" id="metricPhysSize">-- cm</strong>
+            </div>
+          </div>
+
+          <div class="breakdown-block">
+            <div class="breakdown-head">
+              <span>四阶段工时拆解</span>
+              <span id="scatterHint" class="num">孤立散点豆 0.0%</span>
+            </div>
+            <div class="stacked-bar" aria-hidden="true">
+              <div class="sb-seg seg-prep" id="barPrep" style="width:15%"></div>
+              <div class="sb-seg seg-place" id="barPlace" style="width:55%"></div>
+              <div class="sb-seg seg-detail" id="barDetail" style="width:15%"></div>
+              <div class="sb-seg seg-iron" id="barIron" style="width:15%"></div>
+            </div>
+            <div class="breakdown-legend num">
+              <span><i class="dot seg-prep"></i>找豆分色 <b id="minPrep">0m</b></span>
+              <span><i class="dot seg-place"></i>连片摆豆 <b id="minPlace">0m</b></span>
+              <span><i class="dot seg-detail"></i>散点对位 <b id="minDetail">0m</b></span>
+              <span><i class="dot seg-iron"></i>贴纸熨烫 <b id="minIron">0m</b></span>
+            </div>
+          </div>
+
+          <!-- 完整全边框排期提示（彻底移除单侧左边框反模式） -->
+          <div class="advice-callout">
+            <svg class="ui-icon callout-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.8M8 4.8h.01"/></svg>
+            <p id="sessionAdvice">上传图片后将自动结合同色连片度与散点比例定制分板排期建议。</p>
+          </div>
+        </section>
+
+        <!-- 区域 2：色号用量与独立跟拼/取色控制 -->
+        <section class="panel-section bom-section">
+          <div class="section-head">
+            <h2>色号材料与跟拼清单</h2>
+            <span id="bomCountTag" class="meta-pill num">0 色</span>
+          </div>
+
+          <div class="bom-filter-row">
+            <input type="search" id="bomSearchInput" class="compact-input" placeholder="筛选色号或名称..." aria-label="筛选材料清单中的色号" />
+            <button type="button" id="btnBomSort" class="toggle-chip" data-sort="count" title="切换按用豆数量或色号字母排序">按数量</button>
+          </div>
+
+          <div id="progressStrip" class="progress-strip hidden" role="status" aria-live="polite">
+            <span id="progressText" class="num">已拼完 0 / 0 颗</span>
+            <span id="remainingTimeText" class="num">剩余约 -- 分钟</span>
+          </div>
+
+          <div id="bomList" class="bom-list selectable"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <script src="/ui/main.js"></script>
+</body>
+</html>
