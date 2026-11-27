@@ -1,8 +1,7 @@
 """拼豆工坊 (BeadCraft Studio) 桌面应用主入口.
 
-集成本地高速图形计算引擎与独立 Windows 桌面应用窗口（Edge App Mode 独立窗口），
-采用 SSE 长连接会话守卫 + 心跳双保险机制（完美兼容 Win11 Edge 进程委托机制与最小化后台挂起），
-并内置 --no-proxy-server 防止系统代理软件拦截 127.0.0.1 本地通信。
+集成本地高速图形计算引擎、AI 拼豆对话智能体（支持自定义大模型 + Tavily 联网图文搜索推荐）
+以及独立 Windows 桌面应用窗口（Edge App Mode 独立窗口 + SSE 会话守卫）。
 """
 
 from __future__ import annotations
@@ -10,9 +9,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
-from collections import Counter
+from collections import Counter, deque
 import ctypes
 import io
+import json
 import os
 from pathlib import Path
 import socket
@@ -23,11 +23,9 @@ import time
 import traceback
 import uuid
 import webbrowser
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
-# 彻底隔离系统代理环境变量，防止 Clash / v2ray 等代理工具拦截 127.0.0.1 回环请求
-for _proxy_key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
-    os.environ.pop(_proxy_key, None)
+# 确保本地 127.0.0.1 回环通信永不经过系统代理，同时保留外网大模型与 Tavily 请求按需使用系统代理的能力
 os.environ["NO_PROXY"] = "127.0.0.1,localhost"
 os.environ["no_proxy"] = "127.0.0.1,localhost"
 
@@ -45,6 +43,12 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 import uvicorn
 
+from core.agent import run_agent_turn
+from core.agent_config import (
+    get_public_agent_config,
+    load_agent_config,
+    save_agent_config,
+)
 from core.estimator import estimate_assembly_time
 from core.exporter import export_blueprint_png, export_bom_xlsx
 from core.generator import (
@@ -53,22 +57,35 @@ from core.generator import (
     generate_bead_pattern,
     load_normalized_rgba,
 )
+from core.llm_client import test_llm_connectivity
 from core.palettes import get_palette, list_palettes_meta
 from core.samples import SAMPLE_ITEMS, build_sample_png
+from core.search_client import tavily_search
+from core.wechat_clawbot import WeChatClawBotManager
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR / "ui"
 RUNTIME_DIR = BASE_DIR / ".studio_webview_v2"
 
-# 内存图像会话缓存
+# 内存图像会话缓存（保留最近 36 张原图与智能体推荐候选图）
 IMAGE_STORE: Dict[str, Image.Image] = {}
 
-# 桌面窗口活跃会话跟踪（解决 Win11 msedge.exe 启动器进程立即退出导致后台提前关闭的问题）
+# 桌面窗口活跃会话与 SSE 实时事件广播队列
 ACTIVE_CLIENTS: Set[str] = set()
+CLIENT_QUEUES_LOCK = threading.Lock()
+CLIENT_EVENT_QUEUES: Dict[str, deque[str]] = {}
 CLIENT_CONNECTED_ONCE: bool = False
 LAST_ACTIVITY_TIME: float = time.time()
 WINDOW_CLOSE_BEACON_AT: float = 0.0
 SHUTDOWN_EVENT = threading.Event()
+
+
+def _broadcast_sse_event(event_name: str, payload: Dict[str, Any]) -> None:
+    frame = f"event: {event_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    with CLIENT_QUEUES_LOCK:
+        for q in CLIENT_EVENT_QUEUES.values():
+            if len(q) < 64:
+                q.append(frame)
 
 
 def _touch_activity() -> None:
@@ -79,12 +96,16 @@ def _touch_activity() -> None:
 
 
 def _store_image(img: Image.Image) -> str:
-    if len(IMAGE_STORE) >= 12:
+    while len(IMAGE_STORE) >= 36:
         oldest_key = next(iter(IMAGE_STORE))
         IMAGE_STORE.pop(oldest_key, None)
     img_id = uuid.uuid4().hex[:12]
     IMAGE_STORE[img_id] = img
     return img_id
+
+
+def _get_image(img_id: str) -> Image.Image | None:
+    return IMAGE_STORE.get(img_id)
 
 
 def _image_to_data_url(img: Image.Image) -> str:
@@ -94,6 +115,15 @@ def _image_to_data_url(img: Image.Image) -> str:
     return f"data:image/png;base64,{b64}"
 
 
+# 微信 ClawBot 扫码连接与图文联动单例管理器
+WECHAT_BOT = WeChatClawBotManager(
+    store_image_fn=_store_image,
+    get_image_fn=_get_image,
+    image_to_data_url_fn=_image_to_data_url,
+    broadcast_event_fn=_broadcast_sse_event,
+)
+
+
 # ---------------------------------------------------------------------------
 # HTTP API 路由
 # ---------------------------------------------------------------------------
@@ -101,6 +131,13 @@ async def homepage(request: Request) -> Response:
     _touch_activity()
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
     return Response(html, media_type="text/html; charset=utf-8")
+
+
+async def favicon_ico(request: Request) -> Response:
+    ico_path = BASE_DIR / "launcher" / "app.ico"
+    if ico_path.exists():
+        return Response(ico_path.read_bytes(), media_type="image/x-icon")
+    return Response(status_code=404)
 
 
 async def api_health(request: Request) -> JSONResponse:
@@ -114,6 +151,8 @@ async def api_init(request: Request) -> JSONResponse:
             "palettes": list_palettes_meta(),
             "qualities": list(QUALITY_PRESETS.values()),
             "samples": SAMPLE_ITEMS,
+            "agent": get_public_agent_config(),
+            "wechat": WECHAT_BOT.get_public_status(),
         }
     )
 
@@ -263,6 +302,146 @@ async def api_reestimate(request: Request) -> JSONResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# AI 拼豆对话智能体与配置 API
+# ---------------------------------------------------------------------------
+async def api_agent_get_config(request: Request) -> JSONResponse:
+    _touch_activity()
+    return JSONResponse(get_public_agent_config())
+
+
+async def api_agent_save_config(request: Request) -> JSONResponse:
+    _touch_activity()
+    body = await request.json()
+    save_agent_config(body)
+    return JSONResponse(get_public_agent_config())
+
+
+async def api_agent_test(request: Request) -> JSONResponse:
+    """在不强制保存或保存前测试大模型 / Tavily 连通性."""
+    _touch_activity()
+    body = await request.json()
+    target = body.get("target", "llm")
+    merged_cfg = load_agent_config()
+
+    for k, v in body.items():
+        if k == "target":
+            continue
+        if k in ("api_key", "tavily_api_key") and (not v or str(v).startswith("****")):
+            continue
+        merged_cfg[k] = v
+
+    try:
+        if target == "tavily":
+            res = await asyncio.to_thread(tavily_search, "皮卡丘 像素画", merged_cfg, 2, True)
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "message": f"Tavily 搜索连通正常（返回 {len(res['results'])} 条网页与 {len(res['images'])} 张参考图）",
+                }
+            )
+        reply = await asyncio.to_thread(test_llm_connectivity, merged_cfg)
+        return JSONResponse({"ok": True, "message": f"模型响应正常：{reply}"})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+async def api_agent_chat(request: Request) -> JSONResponse:
+    _touch_activity()
+    body = await request.json()
+    messages = body.get("messages") or []
+    canvas_context = body.get("canvas_context") or {}
+    recent_candidates = body.get("recent_candidates") or []
+
+    try:
+        result = await asyncio.to_thread(
+            run_agent_turn,
+            messages,
+            canvas_context,
+            recent_candidates,
+            _store_image,
+            _get_image,
+            _image_to_data_url,
+        )
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+async def api_agent_apply_candidate(request: Request) -> JSONResponse:
+    """将推荐卡片中的任意候选图一键生成全套三档拼豆图纸并加载到主画板."""
+    _touch_activity()
+    body = await request.json()
+    img_id = body.get("image_id")
+    img = IMAGE_STORE.get(img_id)
+    if img is None:
+        return JSONResponse({"error": "该候选图像缓存已过期，请重新向助手发起检索"}, status_code=404)
+
+    palette_id = body.get("palette_id", "mard_96")
+    remove_bg = bool(body.get("remove_bg", True))
+    active_quality = body.get("quality", "hd")
+
+    tiers = await asyncio.to_thread(
+        generate_all_tiers_summary,
+        img,
+        palette_id,
+        remove_bg,
+    )
+    return JSONResponse(
+        {
+            "image_id": img_id,
+            "source_width": img.size[0],
+            "source_height": img.size[1],
+            "source_data_url": _image_to_data_url(img),
+            "tiers": tiers,
+            "active_quality": active_quality,
+            "palette_id": palette_id,
+            "remove_bg": remove_bg,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# 微信 ClawBot 扫码连接与状态管理 API
+# ---------------------------------------------------------------------------
+async def api_wechat_status(request: Request) -> JSONResponse:
+    _touch_activity()
+    return JSONResponse(WECHAT_BOT.get_public_status())
+
+
+async def api_wechat_login_qr(request: Request) -> JSONResponse:
+    _touch_activity()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    force = bool(body.get("force", False))
+    try:
+        status = await asyncio.to_thread(WECHAT_BOT.start_qr_login, force)
+        return JSONResponse(status)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+async def api_wechat_verify_code(request: Request) -> JSONResponse:
+    _touch_activity()
+    body = await request.json()
+    code = str(body.get("code") or "").strip()
+    if not code:
+        return JSONResponse({"error": "请输入手机微信界面显示的配对数字"}, status_code=400)
+    try:
+        status = WECHAT_BOT.submit_verify_code(code)
+        return JSONResponse(status)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+async def api_wechat_disconnect(request: Request) -> JSONResponse:
+    _touch_activity()
+    status = await asyncio.to_thread(WECHAT_BOT.disconnect)
+    return JSONResponse(status)
+
+
 async def api_export_png(request: Request) -> Response:
     _touch_activity()
     body = await request.json()
@@ -285,23 +464,39 @@ async def api_export_xlsx(request: Request) -> Response:
 
 
 async def api_session_stream(request: Request) -> StreamingResponse:
-    """SSE 长连接会话守卫：只要桌面窗口未关闭（即便最小化数小时），TCP 连接始终存活."""
     client_id = uuid.uuid4().hex[:10]
+    client_queue: deque[str] = deque()
     ACTIVE_CLIENTS.add(client_id)
+    with CLIENT_QUEUES_LOCK:
+        CLIENT_EVENT_QUEUES[client_id] = client_queue
     _touch_activity()
 
     async def event_generator():
         global LAST_ACTIVITY_TIME
+        ticks = 0
         try:
             yield "retry: 1000\ndata: connected\n\n"
             while not SHUTDOWN_EVENT.is_set():
                 if await request.is_disconnected():
                     break
-                LAST_ACTIVITY_TIME = time.time()
-                await asyncio.sleep(2.0)
-                yield ": keepalive\n\n"
+                pending_frames = []
+                with CLIENT_QUEUES_LOCK:
+                    while client_queue:
+                        pending_frames.append(client_queue.popleft())
+                for frame in pending_frames:
+                    LAST_ACTIVITY_TIME = time.time()
+                    yield frame
+
+                await asyncio.sleep(0.25)
+                ticks += 1
+                if ticks >= 8:
+                    ticks = 0
+                    LAST_ACTIVITY_TIME = time.time()
+                    yield ": keepalive\n\n"
         finally:
             ACTIVE_CLIENTS.discard(client_id)
+            with CLIENT_QUEUES_LOCK:
+                CLIENT_EVENT_QUEUES.pop(client_id, None)
             LAST_ACTIVITY_TIME = time.time()
 
     return StreamingResponse(
@@ -325,12 +520,22 @@ async def api_window_closed(request: Request) -> JSONResponse:
 starlette_app = Starlette(
     routes=[
         Route("/", homepage),
+        Route("/favicon.ico", favicon_ico),
         Route("/api/health", api_health),
         Route("/api/init", api_init),
         Route("/api/load_sample", api_load_sample, methods=["POST"]),
         Route("/api/upload", api_upload, methods=["POST"]),
         Route("/api/recompute", api_recompute, methods=["POST"]),
         Route("/api/reestimate", api_reestimate, methods=["POST"]),
+        Route("/api/agent/config", api_agent_get_config, methods=["GET"]),
+        Route("/api/agent/config", api_agent_save_config, methods=["POST"]),
+        Route("/api/agent/test", api_agent_test, methods=["POST"]),
+        Route("/api/agent/chat", api_agent_chat, methods=["POST"]),
+        Route("/api/agent/apply_candidate", api_agent_apply_candidate, methods=["POST"]),
+        Route("/api/wechat/status", api_wechat_status, methods=["GET"]),
+        Route("/api/wechat/login_qr", api_wechat_login_qr, methods=["POST"]),
+        Route("/api/wechat/verify_code", api_wechat_verify_code, methods=["POST"]),
+        Route("/api/wechat/disconnect", api_wechat_disconnect, methods=["POST"]),
         Route("/api/export/png", api_export_png, methods=["POST"]),
         Route("/api/export/xlsx", api_export_xlsx, methods=["POST"]),
         Route("/api/session_stream", api_session_stream),
@@ -356,7 +561,6 @@ def _pick_local_port(preferred: int = 18680) -> int:
 
 
 def _is_port_already_running_studio(port: int) -> bool:
-    """检查默认端口是否已有正在运行的拼豆工坊实例，若是则直接复用并唤醒新窗口."""
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=0.35) as sock:
             sock.sendall(b"GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
@@ -367,7 +571,6 @@ def _is_port_already_running_studio(port: int) -> bool:
 
 
 def _wait_tcp_listening(port: int, timeout_s: float = 10.0) -> bool:
-    """使用原生 TCP 套接字探测端口就绪，完全绕过任何系统 HTTP 代理配置."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
@@ -438,10 +641,6 @@ def launch_desktop_app(port: int = 0) -> None:
     boot_time = time.time()
     _open_app_window(url)
 
-    # 智能生命周期守卫：
-    # 1. 启动前 60 秒等待桌面窗口首次建立连接（兼容 Win11 Edge 进程代理转发机制，绝不提前秒退）
-    # 2. 连接建立后，只要 SSE 长连接仍在或近期有心跳，持续保活（即使窗口最小化数小时也不中断）
-    # 3. 当用户点击右上角 × 关闭窗口（连接归零并持续超过 3 秒非 F5 刷新），自动优雅退出后台进程
     zero_clients_since: float | None = None
 
     while not SHUTDOWN_EVENT.is_set():
@@ -464,15 +663,14 @@ def launch_desktop_app(port: int = 0) -> None:
         idle_disconnected = now - zero_clients_since
         since_last_touch = now - LAST_ACTIVITY_TIME
 
-        # 若收到了前端关闭信标且 2.5 秒内没有重连（排除按 F5 刷新的情况），立即退出
         if WINDOW_CLOSE_BEACON_AT > 0 and idle_disconnected >= 2.5 and since_last_touch >= 2.0:
             break
 
-        # 若未收到信标但所有窗口连接已断开超过 10 秒，也自动回收后台
         if idle_disconnected >= 10.0 and since_last_touch >= 10.0:
             break
 
     SHUTDOWN_EVENT.set()
+    WECHAT_BOT.stop_background_threads()
     server.should_exit = True
     time.sleep(0.2)
 
