@@ -1,0 +1,17 @@
+# Python bytecode & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Desktop WebView / Edge runtime profiles & logs
+.desktop_window_profile/
+.studio_webview_v2/
+*.log
+
+# Local tooling & OS metadata
+.impeccable/
+.DS_Store
+Thumbs.db
