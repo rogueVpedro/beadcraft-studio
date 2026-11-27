@@ -11,7 +11,9 @@ env/
 .studio_webview_v2/
 *.log
 
-# Local tooling & OS metadata
+# Local tooling, secrets & OS metadata
+.agent_config.json
+.wechat_clawbot_state.json
 .impeccable/
 .DS_Store
 Thumbs.db

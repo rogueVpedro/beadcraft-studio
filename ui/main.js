@@ -1,5 +1,7 @@
 /**
- * 拼豆工坊 (BeadCraft Studio) 桌面交互式画布与工时联动前端核心 (Impeccable Polished Edition)
+ * 拼豆工坊 · BeadCraft Studio (1930s Rubber Hose Edition)
+ * 深度集成 finktheartist/rubber-hose-ui 橡皮管卡通组件体系 (<hose-tabs>, <hose-toggle>, <hose-slider>, <hose-button>, <hose-toast>)
+ * 与专属拼豆精灵 (<hose-bead-mascot>)、AI 联网对话智能体及微信 ClawBot 扫码实时同步
  */
 
 const STORAGE_PREFIX = "beadcraft_done_v1:";
@@ -16,20 +18,30 @@ const state = {
   skillLevel: "standard",   // beginner | standard | pro
   beadSpec: "mini_26mm",    // mini_26mm | standard_50mm
   viewMode: "ring",         // ring | code | flat | compare
+  leftMode: "agent",        // agent | manual
   activeTool: "pan",        // pan | brush | eraser | picker
-  selectedColorIdx: 0,      // 改色笔当前激活的色号索引
-  spotlightColorIdx: null,  // 单色聚光灯跟拼目标色号索引（与改色笔解耦）
+  selectedColorIdx: 0,
+  spotlightColorIdx: null,
   bomFilter: "",
-  bomSort: "count",         // count | code
+  bomSort: "count",
   completedByTier: { simple: new Set(), hd: new Set(), faithful: new Set() },
   undoStacks: { simple: [], hd: [], faithful: [] },
   redoStacks: { simple: [], hd: [], faithful: [] },
   manualEditsByTier: { simple: false, hd: false, faithful: false },
 
+  // AI 对话智能体与微信 ClawBot 状态
+  agentConfig: null,
+  agentBusy: false,
+  chatMessages: [],
+  recentCandidates: [],
+  wechatStatus: null,
+  wechatPollTimer: null,
+
   showBoard29: true,
   showRuler: true,
-  daylightMat: false,       // false: 深色高对比底板 | true: 透白实景拼板底色
-  craftFocus: false,        // 专注跟拼模式（折叠左侧参数栏）
+  daylightMat: true,        // 默认启用 1930s 复古羊皮纸赛璐璐拼板底色
+  filmEnabled: true,        // 默认启用 1930s 老胶片颗粒与轻微灰尘层
+  craftFocus: false,
 
   // 视口与交互状态
   zoom: 1.0,
@@ -47,8 +59,78 @@ const state = {
 
 const els = {
   workspaceGrid: document.getElementById("workspaceGrid"),
+  btnFilmMode: document.getElementById("btnFilmMode"),
+  filmModeLabel: document.getElementById("filmModeLabel"),
+  filmOverlay: document.getElementById("filmOverlay"),
+  btnOpenWechatBot: document.getElementById("btnOpenWechatBot"),
+  wechatStatusDot: document.getElementById("wechatStatusDot"),
+  btnQuickWechat: document.getElementById("btnQuickWechat"),
+  btnOpenAgentConfig: document.getElementById("btnOpenAgentConfig"),
+  agentStatusDot: document.getElementById("agentStatusDot"),
   btnCraftFocus: document.getElementById("btnCraftFocus"),
   craftFocusLabel: document.getElementById("craftFocusLabel"),
+
+  // Rubber Hose 交互角色元素
+  hoseLeftTabs: document.getElementById("hoseLeftTabs"),
+  hoseSendBtn: document.getElementById("hoseSendBtn"),
+  hoseRemoveBg: document.getElementById("hoseRemoveBg"),
+  hoseToggleSaid: document.getElementById("hoseToggleSaid"),
+  hoseSizeSlider: document.getElementById("hoseSizeSlider"),
+  hoseBeadMascot: document.getElementById("hoseBeadMascot"),
+  mascotSpeech: document.getElementById("mascotSpeech"),
+  hoseToaster: document.getElementById("hoseToaster"),
+
+  agentPane: document.getElementById("agentPane"),
+  manualPane: document.getElementById("manualPane"),
+  agentModelTag: document.getElementById("agentModelTag"),
+  btnQuickConfig: document.getElementById("btnQuickConfig"),
+  chatHistory: document.getElementById("chatHistory"),
+  agentChatForm: document.getElementById("agentChatForm"),
+  agentPromptInput: document.getElementById("agentPromptInput"),
+  btnSendPrompt: document.getElementById("btnSendPrompt"),
+
+  // 微信 ClawBot 扫码弹窗元素
+  wechatClawDialog: document.getElementById("wechatClawDialog"),
+  btnCloseWechatIcon: document.getElementById("btnCloseWechatIcon"),
+  btnCloseWechatFooter: document.getElementById("btnCloseWechatFooter"),
+  wechatStateBadge: document.getElementById("wechatStateBadge"),
+  wechatBotMeta: document.getElementById("wechatBotMeta"),
+  btnRefreshWechatQr: document.getElementById("btnRefreshWechatQr"),
+  btnDisconnectWechat: document.getElementById("btnDisconnectWechat"),
+  wechatQrSection: document.getElementById("wechatQrSection"),
+  wechatQrImg: document.getElementById("wechatQrImg"),
+  wechatQrLoading: document.getElementById("wechatQrLoading"),
+  wechatLiveHint: document.getElementById("wechatLiveHint"),
+  wechatVerifyWrap: document.getElementById("wechatVerifyWrap"),
+  wechatVerifyInput: document.getElementById("wechatVerifyInput"),
+  btnSubmitVerifyCode: document.getElementById("btnSubmitVerifyCode"),
+  wechatConnectedSection: document.getElementById("wechatConnectedSection"),
+  wechatBoundIds: document.getElementById("wechatBoundIds"),
+  wechatErrorBox: document.getElementById("wechatErrorBox"),
+
+  // 配置弹窗元素
+  agentConfigDialog: document.getElementById("agentConfigDialog"),
+  agentConfigForm: document.getElementById("agentConfigForm"),
+  btnCloseConfigIcon: document.getElementById("btnCloseConfigIcon"),
+  btnCancelConfig: document.getElementById("btnCancelConfig"),
+  cfgPresetSelect: document.getElementById("cfgPresetSelect"),
+  cfgProtocolSelect: document.getElementById("cfgProtocolSelect"),
+  cfgBaseUrl: document.getElementById("cfgBaseUrl"),
+  cfgModelName: document.getElementById("cfgModelName"),
+  cfgApiKey: document.getElementById("cfgApiKey"),
+  cfgLlmSavedHint: document.getElementById("cfgLlmSavedHint"),
+  btnTestLlm: document.getElementById("btnTestLlm"),
+  llmTestResult: document.getElementById("llmTestResult"),
+  cfgTavilyKey: document.getElementById("cfgTavilyKey"),
+  cfgTavilySavedHint: document.getElementById("cfgTavilySavedHint"),
+  cfgTavilyDepth: document.getElementById("cfgTavilyDepth"),
+  cfgBackupImg: document.getElementById("cfgBackupImg"),
+  btnTestTavily: document.getElementById("btnTestTavily"),
+  tavilyTestResult: document.getElementById("tavilyTestResult"),
+  cfgProxyMode: document.getElementById("cfgProxyMode"),
+  cfgCustomProxyField: document.getElementById("cfgCustomProxyField"),
+  cfgCustomProxy: document.getElementById("cfgCustomProxy"),
+
   fileInput: document.getElementById("fileInput"),
   dropzone: document.getElementById("dropzone"),
   sourceThumb: document.getElementById("sourceThumb"),
@@ -116,12 +198,53 @@ const els = {
 
 const ctx = els.canvas.getContext("2d");
 
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function inferToasterBrief(msg, isError) {
+  if (isError) return "OOPS!";
+  if (msg.includes("保存") || msg.includes("下载")) return "SAVED!";
+  if (msg.includes("微信")) return "WECHAT!";
+  if (msg.includes("色号") || msg.includes("吸取")) return "COLOR!";
+  return "READY!";
+}
+
 function showToast(msg, isError = false) {
   els.toast.textContent = msg;
   els.toast.classList.toggle("error", Boolean(isError));
   els.toast.classList.remove("hidden");
   clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => els.toast.classList.add("hidden"), isError ? 4200 : 2600);
+  showToast._timer = setTimeout(() => els.toast.classList.add("hidden"), isError ? 4200 : 2800);
+
+  // 同步唤醒 Rubber Hose 烤面包机角色弹出吐司片 (DING!)
+  if (els.hoseToaster && typeof els.hoseToaster.show === "function") {
+    els.hoseToaster.show(msg, inferToasterBrief(msg, isError));
+  }
+}
+
+function syncRemoveBgWidgets(checked) {
+  els.chkRemoveBg.checked = Boolean(checked);
+  if (els.hoseRemoveBg && "checked" in els.hoseRemoveBg) {
+    els.hoseRemoveBg.checked = Boolean(checked);
+  }
+  if (els.hoseToggleSaid) {
+    els.hoseToggleSaid.textContent = checked
+      ? "灯泡已点亮！外围纯色背景已自动剔除"
+      : "拨动右侧小灯泡，省去背景豆与工时";
+  }
+}
+
+function syncSizeSliderWidgets(val) {
+  els.customSizeRange.value = val;
+  els.customSizeVal.textContent = val;
+  if (els.hoseSizeSlider && "value" in els.hoseSizeSlider) {
+    els.hoseSizeSlider.value = val;
+  }
 }
 
 function setLoading(flag) {
@@ -171,12 +294,91 @@ function cloneGrid(grid) {
   return grid.map((row) => row.slice());
 }
 
+function switchLeftMode(mode) {
+  state.leftMode = mode;
+  document.querySelectorAll(".left-tab").forEach((btn) => {
+    const isAct = btn.dataset.leftmode === mode;
+    btn.classList.toggle("active", isAct);
+    btn.setAttribute("aria-selected", String(isAct));
+  });
+  if (els.hoseLeftTabs && els.hoseLeftTabs.value !== mode) {
+    els.hoseLeftTabs.value = mode;
+  }
+  els.agentPane.classList.toggle("hidden", mode !== "agent");
+  els.manualPane.classList.toggle("hidden", mode !== "manual");
+}
+
+// ---------------------------------------------------------------------------
+// 1930s 老动画胶片颗粒与灰尘划痕特效层（遵循 rubber-hose-ui 画廊设计，不对画布做位移）
+// ---------------------------------------------------------------------------
+function initVintageFilmOverlay() {
+  const film = els.filmOverlay;
+  if (!film || !window.RubberHose) return;
+  const fx = window.RubberHose;
+  const grain = film.querySelector(".grain");
+  const dust = film.querySelector(".dust");
+  const dg = dust.getContext("2d");
+
+  const tile = document.createElement("canvas");
+  tile.width = 200;
+  tile.height = 200;
+  const tx = tile.getContext("2d");
+  const imgData = tx.createImageData(200, 200);
+  const arr = imgData.data;
+  for (let i = 0; i < arr.length; i += 4) {
+    const v = 204 + Math.random() * 51;
+    arr[i] = v;
+    arr[i + 1] = v * 0.98;
+    arr[i + 2] = v * 0.94;
+    arr[i + 3] = 255;
+  }
+  tx.putImageData(imgData, 0, 0);
+  grain.style.background = `url(${tile.toDataURL("image/png")})`;
+
+  const syncDustSize = () => {
+    dust.width = window.innerWidth;
+    dust.height = window.innerHeight;
+  };
+  syncDustSize();
+  window.addEventListener("resize", syncDustSize);
+
+  let lastTick = -1;
+  const stepFilm = () => {
+    requestAnimationFrame(stepFilm);
+    if (!state.filmEnabled || fx.calm) {
+      dg.clearRect(0, 0, dust.width, dust.height);
+      return;
+    }
+    const k = Math.floor(fx.now * 10);
+    if (k === lastTick) return;
+    lastTick = k;
+
+    grain.style.backgroundPosition = `${Math.floor(fx.hash(k * 1.7) * 200)}px ${Math.floor(fx.hash(k * 2.9) * 200)}px`;
+    const W = dust.width;
+    const H = dust.height;
+    dg.clearRect(0, 0, W, H);
+
+    const count = fx.hash(k * 3.9) < 0.35 ? 1 + Math.floor(fx.hash(k * 6.1) * 2) : 0;
+    dg.fillStyle = "rgba(50, 34, 20, 0.36)";
+    for (let i = 0; i < count; i++) {
+      const px = fx.hash(k * 2.3 + i * 7.1) * W;
+      const py = fx.hash(k * 5.1 + i * 3.3) * H;
+      const r = 0.7 + fx.hash(k + i * 9.7) * 1.6;
+      dg.beginPath();
+      dg.arc(px, py, r, 0, Math.PI * 2);
+      dg.fill();
+    }
+  };
+  requestAnimationFrame(stepFilm);
+}
+
 // ---------------------------------------------------------------------------
 // 初始化与后端通信
 // ---------------------------------------------------------------------------
 async function initApp() {
   startDesktopHeartbeat();
   bindEvents();
+  initVintageFilmOverlay();
   resizeCanvasToContainer();
 
   try {
@@ -200,15 +402,470 @@ async function initApp() {
       )
       .join("");
 
+    if (meta.agent) {
+      applyAgentConfigMeta(meta.agent);
+    }
+    if (meta.wechat) {
+      applyWechatStatus(meta.wechat);
+    }
+
     if (meta.samples.length > 0) {
-      await loadSample(meta.samples[0].id);
+      await loadSample(meta.samples[0].id, true);
     }
   } catch (err) {
     showToast("初始化连接失败，请刷新窗口重试：" + err.message, true);
   }
 }
 
-async function loadSample(sampleId) {
+// ---------------------------------------------------------------------------
+// AI 智能体配置管理与对话工作流
+// ---------------------------------------------------------------------------
+function applyAgentConfigMeta(cfg) {
+  state.agentConfig = cfg;
+  const bothReady = cfg.llm_ready && cfg.tavily_ready;
+  els.agentStatusDot.classList.toggle("warn", !bothReady);
+
+  if (bothReady) {
+    els.agentModelTag.textContent = `${cfg.model} · Tavily 联网已就绪`;
+  } else if (cfg.llm_ready) {
+    els.agentModelTag.textContent = `${cfg.model} · 待配 Tavily 搜索`;
+  } else if (cfg.tavily_ready) {
+    els.agentModelTag.textContent = `Tavily 已就绪 · 待配大模型`;
+  } else {
+    els.agentModelTag.textContent = "未配置模型与 Tavily 密钥";
+  }
+
+  if (cfg.presets && els.cfgPresetSelect.options.length === 0) {
+    els.cfgPresetSelect.innerHTML = cfg.presets
+      .map((p) => `<option value="${p.id}">${p.name}</option>`)
+      .join("");
+  }
+}
+
+function openAgentConfigDialog() {
+  const cfg = state.agentConfig;
+  if (!cfg) return;
+
+  els.cfgPresetSelect.value = cfg.preset_id || "deepseek";
+  els.cfgProtocolSelect.value = cfg.protocol || "openai";
+  els.cfgBaseUrl.value = cfg.base_url || "";
+  els.cfgModelName.value = cfg.model || "";
+  els.cfgApiKey.value = "";
+  els.cfgLlmSavedHint.textContent = cfg.has_api_key ? `(已保存 ${cfg.api_key_masked}，留空则保持不变)` : "";
+
+  els.cfgTavilyKey.value = "";
+  els.cfgTavilySavedHint.textContent = cfg.has_tavily_key ? `(已保存 ${cfg.tavily_api_key_masked}，留空则保持不变)` : "";
+  els.cfgTavilyDepth.value = cfg.tavily_search_depth || "basic";
+  els.cfgBackupImg.checked = Boolean(cfg.enable_backup_image_search);
+
+  els.cfgProxyMode.value = cfg.proxy_mode || "system";
+  els.cfgCustomProxy.value = cfg.custom_proxy || "http://127.0.0.1:7890";
+  els.cfgCustomProxyField.classList.toggle("hidden", els.cfgProxyMode.value !== "custom");
+
+  els.llmTestResult.classList.add("hidden");
+  els.tavilyTestResult.classList.add("hidden");
+  els.agentConfigDialog.showModal();
+}
+
+function collectDraftConfigFromForm() {
+  return {
+    preset_id: els.cfgPresetSelect.value,
+    protocol: els.cfgProtocolSelect.value,
+    base_url: els.cfgBaseUrl.value.trim(),
+    model: els.cfgModelName.value.trim(),
+    api_key: els.cfgApiKey.value.trim() || "****keep",
+    tavily_api_key: els.cfgTavilyKey.value.trim() || "****keep",
+    tavily_search_depth: els.cfgTavilyDepth.value,
+    enable_backup_image_search: els.cfgBackupImg.checked,
+    proxy_mode: els.cfgProxyMode.value,
+    custom_proxy: els.cfgCustomProxy.value.trim(),
+  };
+}
+
+async function testConnectivity(target) {
+  const box = target === "tavily" ? els.tavilyTestResult : els.llmTestResult;
+  const btn = target === "tavily" ? els.btnTestTavily : els.btnTestLlm;
+  box.textContent = "正在发起连通性测试...";
+  box.classList.remove("hidden", "error");
+  btn.disabled = true;
+
+  try {
+    const draft = collectDraftConfigFromForm();
+    const res = await fetch("/api/agent/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, ...draft }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "连接测试未通过");
+    box.textContent = data.message;
+  } catch (err) {
+    box.textContent = err.message;
+    box.classList.add("error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveAgentConfigForm(e) {
+  e.preventDefault();
+  try {
+    const payload = collectDraftConfigFromForm();
+    const res = await fetch("/api/agent/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("保存配置失败");
+    const updated = await res.json();
+    applyAgentConfigMeta(updated);
+    els.agentConfigDialog.close();
+    showToast("智能体模型与联网搜索配置已保存");
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 微信 ClawBot 扫码登录与桌面画布实时同步
+// ---------------------------------------------------------------------------
+function applyWechatStatus(st) {
+  if (!st) return;
+  state.wechatStatus = st;
+
+  const isOnline = Boolean(st.connected);
+  const isScanning = !isOnline && Boolean(st.login);
+
+  els.wechatStatusDot.classList.toggle("offline", !isOnline && !isScanning);
+  els.wechatStatusDot.classList.toggle("warn", isScanning);
+  els.btnQuickWechat.textContent = isOnline ? "微信在线" : isScanning ? "扫码中..." : "微信扫码";
+
+  els.wechatBotMeta.textContent = `官方 iLink 通道 · 已处理 ${st.message_count || 0} 条消息`;
+  els.btnDisconnectWechat.classList.toggle("hidden", !isOnline);
+  els.btnRefreshWechatQr.textContent = isOnline ? "重新扫码换绑" : "刷新二维码";
+
+  if (isOnline) {
+    els.wechatStateBadge.textContent = "已连接在线";
+    els.wechatStateBadge.className = "wechat-badge online";
+    els.wechatQrSection.classList.add("hidden");
+    els.wechatConnectedSection.classList.remove("hidden");
+    els.wechatBoundIds.textContent = st.bot_id
+      ? `已绑定 ClawBot 实例：${st.bot_id}  ·  ${st.status_message || "实时监听中"}`
+      : st.status_message || "微信 ClawBot 在线监听中";
+  } else {
+    const lStatus = st.login?.status || "";
+    if (lStatus === "scaned" || lStatus === "scaned_but_redirect") {
+      els.wechatStateBadge.textContent = "已扫码待确认";
+      els.wechatStateBadge.className = "wechat-badge waiting";
+    } else if (st.login) {
+      els.wechatStateBadge.textContent = "等待微信扫码";
+      els.wechatStateBadge.className = "wechat-badge waiting";
+    } else {
+      els.wechatStateBadge.textContent = "未连接";
+      els.wechatStateBadge.className = "wechat-badge";
+    }
+
+    els.wechatConnectedSection.classList.add("hidden");
+    els.wechatQrSection.classList.remove("hidden");
+
+    if (st.login?.qr_data_url) {
+      els.wechatQrImg.src = st.login.qr_data_url;
+      els.wechatQrLoading.classList.add("hidden");
+    } else {
+      els.wechatQrLoading.classList.remove("hidden");
+    }
+
+    els.wechatLiveHint.textContent =
+      st.status_message || "请使用手机微信扫描左侧二维码（需微信 8.0.70+ 开启 ClawBot 插件）";
+    els.wechatVerifyWrap.classList.toggle("hidden", !st.login?.need_verify_code);
+  }
+
+  if (st.last_error) {
+    els.wechatErrorBox.textContent = st.last_error;
+    els.wechatErrorBox.classList.remove("hidden");
+  } else {
+    els.wechatErrorBox.classList.add("hidden");
+  }
+}
+
+async function requestWechatLoginQr(force = false) {
+  els.wechatErrorBox.classList.add("hidden");
+  els.wechatConnectedSection.classList.add("hidden");
+  els.wechatQrSection.classList.remove("hidden");
+  els.wechatQrLoading.textContent = "正在获取微信官方二维码...";
+  els.wechatQrLoading.classList.remove("hidden");
+  els.btnRefreshWechatQr.disabled = true;
+
+  try {
+    const res = await fetch("/api/wechat/login_qr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "获取微信登录二维码失败");
+    applyWechatStatus(data);
+  } catch (err) {
+    els.wechatQrLoading.textContent = "获取二维码失败，请点击右上角「刷新二维码」重试";
+    els.wechatErrorBox.textContent = err.message;
+    els.wechatErrorBox.classList.remove("hidden");
+  } finally {
+    els.btnRefreshWechatQr.disabled = false;
+  }
+}
+
+function openWechatDialog() {
+  els.wechatClawDialog.showModal();
+  if (!state.wechatStatus?.connected) {
+    requestWechatLoginQr(false);
+  }
+  clearInterval(state.wechatPollTimer);
+  state.wechatPollTimer = setInterval(async () => {
+    if (!els.wechatClawDialog.open) {
+      clearInterval(state.wechatPollTimer);
+      return;
+    }
+    try {
+      const res = await fetch("/api/wechat/status");
+      if (res.ok) applyWechatStatus(await res.json());
+    } catch (_) {}
+  }, 2500);
+}
+
+function closeWechatDialog() {
+  clearInterval(state.wechatPollTimer);
+  els.wechatClawDialog.close();
+}
+
+async function submitWechatVerifyCode() {
+  const code = els.wechatVerifyInput.value.trim();
+  if (!code) return;
+  els.btnSubmitVerifyCode.disabled = true;
+  try {
+    const res = await fetch("/api/wechat/verify_code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "提交配对码失败");
+    els.wechatVerifyInput.value = "";
+    applyWechatStatus(data);
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    els.btnSubmitVerifyCode.disabled = false;
+  }
+}
+
+async function disconnectWechatBot() {
+  els.btnDisconnectWechat.disabled = true;
+  try {
+    const res = await fetch("/api/wechat/disconnect", { method: "POST" });
+    const data = await res.json();
+    applyWechatStatus(data);
+    showToast("已断开微信 ClawBot 连接");
+  } catch (err) {
+    showToast("断开连接失败：" + err.message, true);
+  } finally {
+    els.btnDisconnectWechat.disabled = false;
+  }
+}
+
+function handleInboundWechatSync(payload) {
+  if (!payload) return;
+  if (payload.user_text) {
+    appendChatMessage("user", payload.user_text);
+    state.chatMessages.push({ role: "user", content: payload.user_text });
+  }
+  if (payload.recommendations && payload.recommendations.length > 0) {
+    state.recentCandidates = payload.recommendations;
+  }
+  if (payload.auto_apply) {
+    const ap = payload.auto_apply;
+    state.activeQuality = ap.active_quality || state.activeQuality;
+    state.paletteId = ap.palette_id || state.paletteId;
+    state.removeBg = Boolean(ap.remove_bg);
+    els.paletteSelect.value = state.paletteId;
+    syncRemoveBgWidgets(state.removeBg);
+    els.bgTolWrap.classList.toggle("hidden", !state.removeBg);
+    applyLoadedImageResult(ap, true, true);
+  }
+  if (payload.reply) {
+    appendChatMessage("assistant", payload.reply, payload.tool_steps || [], payload.recommendations || []);
+    state.chatMessages.push({ role: "assistant", content: payload.reply });
+  }
+  showToast("收到手机微信指令，已同步更新画布并将高清图纸发回微信");
+}
+
+function appendChatMessage(role, text, toolSteps = [], recommendations = []) {
+  const wrap = document.createElement("div");
+  wrap.className = `chat-msg ${role}`;
+
+  let html = "";
+  if (toolSteps && toolSteps.length > 0) {
+    html += `<div class="tool-trace-list">${toolSteps
+      .map((s) => `<div class="tool-trace-pill">${escapeHtml(s.label)}</div>`)
+      .join("")}</div>`;
+  }
+
+  html += `<div class="chat-bubble">${escapeHtml(text)}</div>`;
+
+  if (recommendations && recommendations.length > 0) {
+    html += `<div class="rec-list">${recommendations
+      .map((rec, idx) => {
+        const isCurrent = rec.image_id === state.imageId;
+        return `
+          <div class="rec-item ${isCurrent ? "active-on-board" : ""}" data-rec-img="${escapeHtml(rec.image_id)}">
+            <div class="rec-top">
+              <div class="rec-thumb-pair">
+                <img class="rec-bead-img" src="${rec.bead_preview_url}" alt="${escapeHtml(rec.title)} 拼豆预览" />
+                <img class="rec-src-corner" src="${rec.source_thumb_url}" alt="原图参考" />
+              </div>
+              <div class="rec-meta">
+                <div class="rec-title" title="${escapeHtml(rec.title)}">方案 ${idx + 1} · ${escapeHtml(rec.title)}</div>
+                <div class="rec-specs num">${escapeHtml(rec.quality_name)} (${rec.grid_width}×${rec.grid_height}) · ${rec.total_beads.toLocaleString()} 颗 · ${rec.unique_colors} 色</div>
+                <div class="rec-time num">预估时长：约 ${escapeHtml(rec.estimated_time)}</div>
+              </div>
+            </div>
+            <div class="rec-actions">
+              <button type="button" class="btn btn-primary rec-apply-btn" data-apply-rec="${escapeHtml(rec.image_id)}" data-rec-q="${escapeHtml(rec.quality)}" data-rec-pal="${escapeHtml(rec.palette_id)}" data-rec-bg="${rec.remove_bg ? "1" : "0"}">
+                ${isCurrent ? "当前已在画布" : "加载到画布"}
+              </button>
+              <button type="button" class="text-action-btn" data-tune-rec="${escapeHtml(rec.image_id)}" data-rec-q="${escapeHtml(rec.quality)}" data-rec-pal="${escapeHtml(rec.palette_id)}" data-rec-bg="${rec.remove_bg ? "1" : "0"}">
+                三档微调
+              </button>
+            </div>
+          </div>
+        `;
+      })
+      .join("")}</div>`;
+  }
+
+  wrap.innerHTML = html;
+  els.chatHistory.appendChild(wrap);
+  els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+}
+
+function updateActiveRecCardHighlight() {
+  els.chatHistory.querySelectorAll(".rec-item").forEach((el) => {
+    const isAct = el.dataset.recImg === state.imageId;
+    el.classList.toggle("active-on-board", isAct);
+    const btn = el.querySelector("[data-apply-rec]");
+    if (btn) btn.textContent = isAct ? "当前已在画布" : "加载到画布";
+  });
+}
+
+async function sendAgentChatPrompt(promptText) {
+  const clean = promptText.trim();
+  if (!clean || state.agentBusy) return;
+
+  state.agentBusy = true;
+  els.btnSendPrompt.disabled = true;
+  if (els.hoseSendBtn) els.hoseSendBtn.disabled = true;
+  els.agentPromptInput.value = "";
+  appendChatMessage("user", clean);
+  state.chatMessages.push({ role: "user", content: clean });
+
+  const pendingEl = document.createElement("div");
+  pendingEl.className = "chat-msg assistant";
+  pendingEl.innerHTML = `<div class="tool-trace-pill">正在理解需求、执行联网检索并测算拼豆图纸...</div>`;
+  els.chatHistory.appendChild(pendingEl);
+  els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/agent/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: state.chatMessages.slice(-8),
+        canvas_context: {
+          image_id: state.imageId,
+          quality: state.activeQuality,
+          palette_id: state.paletteId,
+          remove_bg: state.removeBg,
+        },
+        recent_candidates: state.recentCandidates,
+      }),
+    });
+    const data = await res.json();
+    pendingEl.remove();
+
+    if (!res.ok) throw new Error(data.error || "智能体请求失败");
+
+    if (data.auto_apply) {
+      const ap = data.auto_apply;
+      state.activeQuality = ap.active_quality || state.activeQuality;
+      state.paletteId = ap.palette_id || state.paletteId;
+      state.removeBg = Boolean(ap.remove_bg);
+      els.paletteSelect.value = state.paletteId;
+      syncRemoveBgWidgets(state.removeBg);
+      els.bgTolWrap.classList.toggle("hidden", !state.removeBg);
+      applyLoadedImageResult(ap, true, true);
+    }
+
+    if (data.recommendations && data.recommendations.length > 0) {
+      state.recentCandidates = data.recommendations;
+    }
+
+    appendChatMessage("assistant", data.reply, data.tool_steps || [], data.recommendations || []);
+    state.chatMessages.push({ role: "assistant", content: data.reply });
+
+    if (data.needs_config) {
+      openAgentConfigDialog();
+    }
+  } catch (err) {
+    pendingEl.remove();
+    appendChatMessage("assistant", `请求遇到问题：${err.message}`);
+  } finally {
+    state.agentBusy = false;
+    els.btnSendPrompt.disabled = false;
+    if (els.hoseSendBtn) els.hoseSendBtn.disabled = false;
+    setLoading(false);
+  }
+}
+
+async function applyRecommendedCandidate(imgId, quality, paletteId, removeBg, jumpToManual = false) {
+  setLoading(true);
+  try {
+    const res = await fetch("/api/agent/apply_candidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_id: imgId,
+        quality,
+        palette_id: paletteId,
+        remove_bg: removeBg,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "加载候选方案失败");
+
+    state.activeQuality = data.active_quality || quality;
+    state.paletteId = data.palette_id || paletteId;
+    state.removeBg = Boolean(data.remove_bg);
+    els.paletteSelect.value = state.paletteId;
+    syncRemoveBgWidgets(state.removeBg);
+    els.bgTolWrap.classList.toggle("hidden", !state.removeBg);
+
+    applyLoadedImageResult(data, true, true);
+    updateActiveRecCardHighlight();
+    if (jumpToManual) {
+      switchLeftMode("manual");
+    }
+    showToast("已将该推荐拼豆方案加载至中央画布");
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 常规原图加载与重算逻辑
+// ---------------------------------------------------------------------------
+async function loadSample(sampleId, quietBoot = false) {
   setLoading(true);
   try {
     const res = await fetch("/api/load_sample", {
@@ -223,7 +880,7 @@ async function loadSample(sampleId) {
     });
     if (!res.ok) throw new Error(`加载示例返回错误 (${res.status})`);
     const data = await res.json();
-    applyLoadedImageResult(data, true);
+    applyLoadedImageResult(data, true, !quietBoot);
   } catch (err) {
     showToast("加载示例失败：" + err.message, true);
   } finally {
@@ -247,7 +904,8 @@ async function uploadImageFile(file) {
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "不支持该图片格式，请选择 PNG/JPG/WEBP 文件");
-    applyLoadedImageResult(data, true);
+    applyLoadedImageResult(data, true, true);
+    switchLeftMode("manual");
     showToast("已生成简略、高清、还原三档拼豆图纸");
   } catch (err) {
     showToast(err.message, true);
@@ -284,7 +942,7 @@ async function recomputeAllTiers(customMaxSide = null) {
       }
     }
     state.spotlightColorIdx = null;
-    refreshAllUI(customMaxSide === null);
+    refreshAllUI(customMaxSide === null, true);
   } catch (err) {
     showToast("重新生成失败：" + err.message, true);
   } finally {
@@ -292,7 +950,7 @@ async function recomputeAllTiers(customMaxSide = null) {
   }
 }
 
-function applyLoadedImageResult(data, fitView = true) {
+function applyLoadedImageResult(data, fitView = true, cheerMascot = false) {
   state.imageId = data.image_id;
   state.tiers = data.tiers;
   state.spotlightColorIdx = null;
@@ -316,20 +974,20 @@ function applyLoadedImageResult(data, fitView = true) {
     state.selectedColorIdx = pat.bom[0].palette_index;
   }
 
-  refreshAllUI(fitView);
+  updateActiveRecCardHighlight();
+  refreshAllUI(fitView, cheerMascot);
 }
 
 // ---------------------------------------------------------------------------
 // UI 状态同步更新
 // ---------------------------------------------------------------------------
-function refreshAllUI(fitAfter = false) {
+function refreshAllUI(fitAfter = false, cheerMascot = false) {
   updateQualityCards();
   const pat = currentPattern();
   if (!pat) return;
 
   const maxDim = Math.max(pat.grid_width, pat.grid_height);
-  els.customSizeRange.value = maxDim;
-  els.customSizeVal.textContent = maxDim;
+  syncSizeSliderWidgets(maxDim);
 
   const defDim = state.defaultMaxSides[state.activeQuality] || 58;
   els.customModifiedTag.classList.toggle("hidden", maxDim === defDim);
@@ -340,7 +998,11 @@ function refreshAllUI(fitAfter = false) {
     card.setAttribute("aria-checked", isAct ? "true" : "false");
   });
 
-  updateBrushColorChip(pat);
+  document.querySelectorAll(".quick-tier-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.qtier === state.activeQuality);
+  });
+
+  updateBrushColorChip(pat, cheerMascot);
   updateHistoryButtons();
   updateRightDashboard(pat);
   renderBomList(pat);
@@ -370,11 +1032,16 @@ function updateQualityCards() {
   }
 }
 
-function updateBrushColorChip(pat) {
+function updateBrushColorChip(pat, cheer = false) {
   const cinfo = pat.palette_lookup[String(state.selectedColorIdx)] || Object.values(pat.palette_lookup)[0];
   if (!cinfo) return;
   els.brushSwatchDot.style.background = cinfo.hex;
   els.brushColorCode.textContent = `${cinfo.code} ${cinfo.name}`;
+
+  // 同步更新橡皮管拼豆小精灵的豆子颜色与肚子色号铭牌
+  if (els.hoseBeadMascot && typeof els.hoseBeadMascot.setBead === "function") {
+    els.hoseBeadMascot.setBead(cinfo.hex, cinfo.code, cinfo.text_color, cheer);
+  }
 }
 
 function renderFullPaletteGrid(pat) {
@@ -450,7 +1117,7 @@ function updateProgressStrip(pat, prof) {
   const remMin = Math.max(1, Math.round(prof.total_minutes * ratioLeft));
   const remTxt = remMin >= 60 ? `${Math.floor(remMin / 60)}小时${remMin % 60}分` : `${remMin}分钟`;
   els.progressText.textContent = `已拼完 ${doneBeads.toLocaleString()} / ${pat.total_beads.toLocaleString()} 颗`;
-  els.remainingTimeText.textContent = doneBeads >= pat.total_beads ? "全部色号摆豆已完成" : `剩余约 ${remTxt}`;
+  els.remainingTimeText.textContent = doneBeads >= pat.total_beads ? "全部色号摆豆已完成!" : `剩余约 ${remTxt}`;
 }
 
 function renderBomList(pat) {
@@ -467,7 +1134,7 @@ function renderBomList(pat) {
   items.sort((a, b) => {
     const aDone = doneSet.has(a.palette_index) ? 1 : 0;
     const bDone = doneSet.has(b.palette_index) ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone; // 已完成的色号自动沉底，方便专注剩余色号
+    if (aDone !== bDone) return aDone - bDone;
     if (state.bomSort === "code") return a.code.localeCompare(b.code, "zh-CN");
     return b.count - a.count;
   });
@@ -519,7 +1186,7 @@ function updateSpotlightBanner(pat) {
 }
 
 // ---------------------------------------------------------------------------
-// Canvas 拼豆渲染引擎（支持透白实景拼板 & 深色高对比双底板）
+// Canvas 1930s 赛璐璐手绘感拼豆渲染引擎
 // ---------------------------------------------------------------------------
 let renderPending = false;
 function requestRender() {
@@ -579,9 +1246,9 @@ function drawScene() {
   const boardH = gh * cell;
 
   const isDaylight = state.daylightMat;
-  const boardBg = isDaylight ? "#f5f7fa" : "#1b2230";
-  const pegHoleFill = isDaylight ? "#dfe5ee" : "#141923";
-  const emptyPinFill = isDaylight ? "rgba(100, 116, 139, 0.28)" : "rgba(148, 163, 184, 0.18)";
+  const boardBg = isDaylight ? "#fff9eb" : "#251d16";
+  const pegHoleFill = isDaylight ? "#e8d7b4" : "#18120d";
+  const emptyPinFill = isDaylight ? "rgba(92, 71, 48, 0.28)" : "rgba(251, 231, 192, 0.22)";
 
   let ox = state.panX;
   const oy = state.panY;
@@ -589,23 +1256,30 @@ function drawScene() {
   if (state.viewMode === "compare" && state.sourceImgObj) {
     ctx.save();
     ctx.fillStyle = boardBg;
+    ctx.strokeStyle = "#251d16";
+    ctx.lineWidth = 3;
     ctx.fillRect(ox - 2, oy - 2, boardW + 4, boardH + 4);
+    ctx.strokeRect(ox - 2, oy - 2, boardW + 4, boardH + 4);
     ctx.drawImage(state.sourceImgObj, ox, oy, boardW, boardH);
-    ctx.fillStyle = "rgba(17, 21, 28, 0.84)";
-    ctx.fillRect(ox + 8, oy + 8, 76, 24);
-    ctx.fillStyle = "#f3f6fb";
-    ctx.font = "600 12px 'Microsoft YaHei UI', sans-serif";
+    ctx.fillStyle = "#fbe7c0";
+    ctx.fillRect(ox + 8, oy + 8, 78, 24);
+    ctx.strokeRect(ox + 8, oy + 8, 78, 24);
+    ctx.fillStyle = "#251d16";
+    ctx.font = "700 12px 'Microsoft YaHei UI', sans-serif";
     ctx.fillText("原始图片", ox + 18, oy + 24);
     ctx.restore();
     ox = state.panX + boardW + cell * 3;
   }
 
+  // 1930s 赛璐璐手绘定位拼板底框（硬边墨水投影 + 浓墨描边）
   ctx.save();
-  ctx.shadowColor = isDaylight ? "rgba(15, 23, 42, 0.18)" : "rgba(0, 0, 0, 0.48)";
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "rgba(37, 29, 22, 0.24)";
+  ctx.fillRect(ox + 5, oy + 6, boardW, boardH);
   ctx.fillStyle = boardBg;
   ctx.fillRect(ox, oy, boardW, boardH);
+  ctx.strokeStyle = "#251d16";
+  ctx.lineWidth = 2.6;
+  ctx.strokeRect(ox - 1, oy - 1, boardW + 2, boardH + 2);
   ctx.restore();
 
   const grid = pat.grid;
@@ -623,7 +1297,7 @@ function drawScene() {
   if (showCodeText) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `700 ${Math.max(8, Math.floor(cell * 0.39))}px "Microsoft YaHei UI", sans-serif`;
+    ctx.font = `700 ${Math.max(8, Math.floor(cell * 0.39))}px "Hose Hand", "Microsoft YaHei UI", sans-serif`;
   }
 
   for (let r = rStart; r < rEnd; r++) {
@@ -647,12 +1321,12 @@ function drawScene() {
       if (!cinfo) continue;
 
       const dimmed = hasSpotlight && val !== state.spotlightColorIdx;
-      ctx.globalAlpha = dimmed ? 0.13 : 1.0;
+      ctx.globalAlpha = dimmed ? 0.14 : 1.0;
 
       if (state.viewMode === "ring") {
         const cx = x0 + cell * 0.5;
         const cy = y0 + cell * 0.5;
-        const outerR = cell * 0.465;
+        const outerR = cell * 0.46;
         const innerR = cell * 0.185;
 
         ctx.fillStyle = cinfo.hex;
@@ -660,17 +1334,18 @@ function drawScene() {
         ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
         ctx.fill();
 
-        if (isDaylight && cell >= 8) {
-          ctx.strokeStyle = "rgba(15, 23, 42, 0.14)";
-          ctx.lineWidth = 0.8;
+        // 赛璐璐微墨线外圈，保证浅色豆在羊皮纸底板上同样饱满清晰
+        if (cell >= 7) {
+          ctx.strokeStyle = isDaylight ? "rgba(37, 29, 22, 0.42)" : "rgba(0, 0, 0, 0.36)";
+          ctx.lineWidth = Math.max(0.8, cell * 0.048);
           ctx.stroke();
         }
 
         if (cell >= 8) {
-          ctx.strokeStyle = "rgba(255,255,255,0.28)";
-          ctx.lineWidth = Math.max(1, cell * 0.06);
+          ctx.strokeStyle = "rgba(255, 252, 240, 0.36)";
+          ctx.lineWidth = Math.max(1, cell * 0.065);
           ctx.beginPath();
-          ctx.arc(cx, cy, outerR * 0.76, Math.PI * 1.1, Math.PI * 1.75);
+          ctx.arc(cx, cy, outerR * 0.75, Math.PI * 1.1, Math.PI * 1.72);
           ctx.stroke();
 
           ctx.fillStyle = pegHoleFill;
@@ -684,7 +1359,7 @@ function drawScene() {
           ctx.fillText(cinfo.code, cx, cy);
         }
       } else {
-        const pad = state.viewMode === "flat" ? 0 : 0.4;
+        const pad = state.viewMode === "flat" ? 0 : 0.45;
         ctx.fillStyle = cinfo.hex;
         ctx.fillRect(x0 + pad, y0 + pad, cell - pad * 2, cell - pad * 2);
 
@@ -697,11 +1372,10 @@ function drawScene() {
   }
   ctx.globalAlpha = 1.0;
 
-  // 5 格辅助线与单格细网格线
   if (cell >= 10 || state.viewMode === "code") {
     ctx.lineWidth = 1;
-    const majorGrid = isDaylight ? "rgba(71, 85, 105, 0.34)" : "rgba(148, 163, 184, 0.34)";
-    const minorGrid = isDaylight ? "rgba(100, 116, 139, 0.16)" : "rgba(148, 163, 184, 0.14)";
+    const majorGrid = isDaylight ? "rgba(37, 29, 22, 0.34)" : "rgba(251, 231, 192, 0.32)";
+    const minorGrid = isDaylight ? "rgba(37, 29, 22, 0.14)" : "rgba(251, 231, 192, 0.13)";
 
     for (let c = cStart; c <= cEnd; c++) {
       if (c % 5 === 0) ctx.strokeStyle = majorGrid;
@@ -725,10 +1399,9 @@ function drawScene() {
     }
   }
 
-  // 29×29 标准大模板分界线
   if (state.showBoard29) {
-    ctx.strokeStyle = isDaylight ? "rgba(220, 38, 38, 0.85)" : "rgba(248, 113, 113, 0.88)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = isDaylight ? "rgba(185, 43, 22, 0.88)" : "rgba(248, 113, 113, 0.9)";
+    ctx.lineWidth = 2.2;
     ctx.setLineDash([6, 4]);
     for (let c = 29; c < gw; c += 29) {
       const x = ox + c * cell;
@@ -747,11 +1420,10 @@ function drawScene() {
     ctx.setLineDash([]);
   }
 
-  // 行列数字坐标尺
   if (state.showRuler && cell >= 9) {
-    const rulerNormal = isDaylight ? "#334155" : "#95a4be";
-    const ruler29 = isDaylight ? "#dc2626" : "#f87171";
-    ctx.font = `600 ${Math.min(12, Math.max(10, Math.floor(cell * 0.48)))}px "Segoe UI", sans-serif`;
+    const rulerNormal = isDaylight ? "#3b2c1e" : "#fbe7c0";
+    const ruler29 = isDaylight ? "#b92b16" : "#fca5a5";
+    ctx.font = `700 ${Math.min(13, Math.max(10, Math.floor(cell * 0.52)))}px "Hose Hand", "Segoe UI", sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     const step = cell < 15 ? 5 : 1;
@@ -773,7 +1445,7 @@ function drawScene() {
 }
 
 // ---------------------------------------------------------------------------
-// 坐标转换、手工改色与完整撤销/重做栈 (Ctrl+Z / Ctrl+Y)
+// 坐标转换、手工改色与撤销/重做栈
 // ---------------------------------------------------------------------------
 function screenToGrid(clientX, clientY) {
   const pat = currentPattern();
@@ -800,7 +1472,7 @@ function applyToolAtCell(row, col) {
   if (state.activeTool === "picker") {
     if (curVal >= 0) {
       state.selectedColorIdx = curVal;
-      updateBrushColorChip(pat);
+      updateBrushColorChip(pat, true);
       renderBomList(pat);
       renderFullPaletteGrid(pat);
       const cinfo = pat.palette_lookup[String(curVal)];
@@ -836,6 +1508,9 @@ async function commitStrokeAndReestimate() {
     state.redoStacks[state.activeQuality] = [];
     state.strokeSnapshot = null;
     updateHistoryButtons();
+  }
+  if (els.hoseBeadMascot && typeof els.hoseBeadMascot.bop === "function") {
+    els.hoseBeadMascot.bop("好手艺！豆子数量和工时已实时重算！");
   }
   await syncGridStatsFromServer();
 }
@@ -883,7 +1558,7 @@ async function syncGridStatsFromServer() {
     pat.bom = updated.bom;
     pat.physical_size_cm = updated.physical_size_cm;
     pat.time_estimate = updated.time_estimate;
-    refreshAllUI(false);
+    refreshAllUI(false, false);
   } catch (err) {
     showToast("统计更新异常：" + err.message, true);
   }
@@ -903,22 +1578,143 @@ function updateViewportCursor() {
 }
 
 // ---------------------------------------------------------------------------
-// 事件绑定
+// 事件绑定（包含全套 Rubber Hose 自定义元素事件监听）
 // ---------------------------------------------------------------------------
 function bindEvents() {
   window.addEventListener("resize", resizeCanvasToContainer);
 
-  // 专注跟拼模式（折叠左侧参数栏，最大化拼板画布）
+  // 1930s 复古胶片颗粒叠层开关
+  els.btnFilmMode.addEventListener("click", () => {
+    state.filmEnabled = !state.filmEnabled;
+    els.filmOverlay.classList.toggle("hidden", !state.filmEnabled);
+    els.btnFilmMode.setAttribute("aria-pressed", String(state.filmEnabled));
+    els.filmModeLabel.textContent = state.filmEnabled ? "胶片开" : "胶片关";
+  });
+
+  // 官方 <hose-tabs> 文件夹踢腿标签切换事件
+  if (els.hoseLeftTabs) {
+    els.hoseLeftTabs.addEventListener("change", (e) => {
+      if (e.detail?.value) {
+        switchLeftMode(e.detail.value);
+      }
+    });
+  }
+  document.querySelectorAll(".left-tab").forEach((tab) => {
+    tab.addEventListener("click", () => switchLeftMode(tab.dataset.leftmode));
+  });
+
+  // 专属 <hose-bead-mascot> 台词联动显示
+  if (els.hoseBeadMascot) {
+    els.hoseBeadMascot.addEventListener("hose:line", (e) => {
+      if (e.detail?.text && els.mascotSpeech) {
+        els.mascotSpeech.textContent = e.detail.text;
+      }
+    });
+  }
+
+  // 打开与关闭微信 ClawBot 扫码连接窗口
+  els.btnOpenWechatBot.addEventListener("click", openWechatDialog);
+  els.btnQuickWechat.addEventListener("click", openWechatDialog);
+  els.btnCloseWechatIcon.addEventListener("click", closeWechatDialog);
+  els.btnCloseWechatFooter.addEventListener("click", closeWechatDialog);
+  els.wechatClawDialog.addEventListener("close", () => clearInterval(state.wechatPollTimer));
+  els.btnRefreshWechatQr.addEventListener("click", () => requestWechatLoginQr(true));
+  els.btnDisconnectWechat.addEventListener("click", disconnectWechatBot);
+  els.btnSubmitVerifyCode.addEventListener("click", submitWechatVerifyCode);
+  els.wechatVerifyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitWechatVerifyCode();
+    }
+  });
+
+  // 打开与关闭大模型/Tavily配置窗口
+  els.btnOpenAgentConfig.addEventListener("click", openAgentConfigDialog);
+  els.btnQuickConfig.addEventListener("click", openAgentConfigDialog);
+  els.btnCloseConfigIcon.addEventListener("click", () => els.agentConfigDialog.close());
+  els.btnCancelConfig.addEventListener("click", () => els.agentConfigDialog.close());
+
+  els.cfgPresetSelect.addEventListener("change", () => {
+    const presets = state.agentConfig?.presets || [];
+    const found = presets.find((p) => p.id === els.cfgPresetSelect.value);
+    if (found) {
+      els.cfgProtocolSelect.value = found.protocol;
+      els.cfgBaseUrl.value = found.base_url;
+      els.cfgModelName.value = found.default_model;
+    }
+  });
+  els.cfgProxyMode.addEventListener("change", () => {
+    els.cfgCustomProxyField.classList.toggle("hidden", els.cfgProxyMode.value !== "custom");
+  });
+  els.btnTestLlm.addEventListener("click", () => testConnectivity("llm"));
+  els.btnTestTavily.addEventListener("click", () => testConnectivity("tavily"));
+  els.agentConfigForm.addEventListener("submit", saveAgentConfigForm);
+
+  // 对话发送（同时支持拍击 <hose-button> 红圆顶角色、点击发送按钮或按 Enter）
+  els.agentChatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    sendAgentChatPrompt(els.agentPromptInput.value);
+  });
+  if (els.hoseSendBtn) {
+    els.hoseSendBtn.addEventListener("click", () => {
+      if (!els.agentPromptInput.value.trim()) {
+        showToast("请先在上方输入框写下想要的拼豆图案描述再拍红钮哟！");
+      }
+    });
+  }
+  els.agentPromptInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendAgentChatPrompt(els.agentPromptInput.value);
+    }
+  });
+
+  els.chatHistory.addEventListener("click", (e) => {
+    const starter = e.target.closest(".starter-chip");
+    if (starter) {
+      sendAgentChatPrompt(starter.dataset.prompt);
+      return;
+    }
+
+    const applyBtn = e.target.closest("[data-apply-rec]");
+    if (applyBtn) {
+      applyRecommendedCandidate(
+        applyBtn.dataset.applyRec,
+        applyBtn.dataset.recQ,
+        applyBtn.dataset.recPal,
+        applyBtn.dataset.recBg === "1",
+        false
+      );
+      return;
+    }
+
+    const tuneBtn = e.target.closest("[data-tune-rec]");
+    if (tuneBtn) {
+      if (tuneBtn.dataset.tuneRec === state.imageId) {
+        switchLeftMode("manual");
+      } else {
+        applyRecommendedCandidate(
+          tuneBtn.dataset.tuneRec,
+          tuneBtn.dataset.recQ,
+          tuneBtn.dataset.recPal,
+          tuneBtn.dataset.recBg === "1",
+          true
+        );
+      }
+    }
+  });
+
+  // 专注跟拼模式
   els.btnCraftFocus.addEventListener("click", () => {
     state.craftFocus = !state.craftFocus;
     els.workspaceGrid.classList.toggle("craft-focus", state.craftFocus);
     els.btnCraftFocus.setAttribute("aria-pressed", String(state.craftFocus));
-    els.craftFocusLabel.textContent = state.craftFocus ? "展开设置" : "专注跟拼";
+    els.craftFocusLabel.textContent = state.craftFocus ? "展开左栏" : "专注跟拼";
     resizeCanvasToContainer();
     fitPatternToViewport();
   });
 
-  // 上传与键盘无障碍支持 (防止冒泡导致重复上传)
+  // 上传与键盘无障碍支持
   els.dropzone.addEventListener("click", () => els.fileInput.click());
   els.dropzone.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -953,6 +1749,7 @@ function bindEvents() {
     }
   });
   window.addEventListener("paste", (e) => {
+    if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
     const items = e.clipboardData?.items || [];
     for (const item of items) {
       if (item.type.startsWith("image/")) {
@@ -962,49 +1759,67 @@ function bindEvents() {
     }
   });
 
-  // 示例切换
   els.sampleButtons.addEventListener("click", (e) => {
     const btn = e.target.closest(".sample-pill");
     if (!btn) return;
     if (!confirmDiscardManualEdits("切换示例图案")) return;
     document.querySelectorAll(".sample-pill").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    loadSample(btn.dataset.sample);
+    loadSample(btn.dataset.sample, false);
   });
 
-  // 三档画质按钮切换（各自保留跟拼勾选进度与撤销历史，绝不误清空！）
+  // 三档画质按钮切换（左栏卡片 + 画布顶栏快捷胶囊联动）
   document.querySelectorAll(".tier-card").forEach((card) => {
     card.addEventListener("click", () => {
       state.activeQuality = card.dataset.quality;
       state.spotlightColorIdx = null;
-      refreshAllUI(true);
+      refreshAllUI(true, true);
+    });
+  });
+  document.querySelectorAll(".quick-tier-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.activeQuality = btn.dataset.qtier;
+      state.spotlightColorIdx = null;
+      refreshAllUI(true, true);
     });
   });
 
-  // 尺寸微调与单档重置
-  els.customSizeRange.addEventListener("input", () => {
-    els.customSizeVal.textContent = els.customSizeRange.value;
-  });
-  els.customSizeRange.addEventListener("change", () => {
+  // 官方 <hose-slider> 铜管长号尺寸推杆实时联动
+  const applyCustomMaxSideChange = (nextSide) => {
     if (state.manualEditsByTier[state.activeQuality]) {
       if (!window.confirm("调整长边颗数将重新采样当前档位并覆盖手工改色，是否继续？")) {
         const pat = currentPattern();
         if (pat) {
-          const curMax = Math.max(pat.grid_width, pat.grid_height);
-          els.customSizeRange.value = curMax;
-          els.customSizeVal.textContent = curMax;
+          syncSizeSliderWidgets(Math.max(pat.grid_width, pat.grid_height));
         }
         return;
       }
     }
-    recomputeAllTiers(parseInt(els.customSizeRange.value, 10));
+    recomputeAllTiers(nextSide);
+  };
+
+  if (els.hoseSizeSlider) {
+    els.hoseSizeSlider.addEventListener("input", () => {
+      const v = Math.round(Number(els.hoseSizeSlider.value) || 58);
+      els.customSizeVal.textContent = v;
+      els.customSizeRange.value = v;
+    });
+    els.hoseSizeSlider.addEventListener("change", () => {
+      const v = Math.round(Number(els.hoseSizeSlider.value) || 58);
+      applyCustomMaxSideChange(v);
+    });
+  }
+  els.customSizeRange.addEventListener("input", () => {
+    syncSizeSliderWidgets(els.customSizeRange.value);
+  });
+  els.customSizeRange.addEventListener("change", () => {
+    applyCustomMaxSideChange(parseInt(els.customSizeRange.value, 10));
   });
   els.btnResetSize.addEventListener("click", () => {
     const defDim = state.defaultMaxSides[state.activeQuality] || 58;
     recomputeAllTiers(defDim);
   });
 
-  // 色卡与去背景设置
   els.paletteSelect.addEventListener("change", () => {
     if (!confirmDiscardManualEdits("更换拼豆色卡")) {
       els.paletteSelect.value = state.paletteId;
@@ -1013,15 +1828,27 @@ function bindEvents() {
     state.paletteId = els.paletteSelect.value;
     recomputeAllTiers(null);
   });
-  els.chkRemoveBg.addEventListener("change", () => {
+
+  // 官方 <hose-toggle> 灯泡人抠除背景开关
+  const handleRemoveBgFlip = (nextChecked) => {
     if (!confirmDiscardManualEdits("切换背景抠除")) {
-      els.chkRemoveBg.checked = state.removeBg;
+      syncRemoveBgWidgets(state.removeBg);
       return;
     }
-    state.removeBg = els.chkRemoveBg.checked;
+    state.removeBg = Boolean(nextChecked);
+    syncRemoveBgWidgets(state.removeBg);
     els.bgTolWrap.classList.toggle("hidden", !state.removeBg);
     recomputeAllTiers(null);
+  };
+  if (els.hoseRemoveBg) {
+    els.hoseRemoveBg.addEventListener("change", () => {
+      handleRemoveBgFlip(els.hoseRemoveBg.checked);
+    });
+  }
+  els.chkRemoveBg.addEventListener("change", () => {
+    handleRemoveBgFlip(els.chkRemoveBg.checked);
   });
+
   els.bgTolRange.addEventListener("input", () => {
     els.bgTolVal.textContent = els.bgTolRange.value;
   });
@@ -1030,7 +1857,6 @@ function bindEvents() {
     recomputeAllTiers(null);
   });
 
-  // 画布辅助线与透白实景底板切换
   els.btnBoard29Toggle.addEventListener("click", () => {
     state.showBoard29 = !state.showBoard29;
     els.btnBoard29Toggle.classList.toggle("active", state.showBoard29);
@@ -1048,11 +1874,10 @@ function bindEvents() {
     els.btnPegboardMat.classList.toggle("active", state.daylightMat);
     els.btnPegboardMat.setAttribute("aria-pressed", String(state.daylightMat));
     els.canvasViewport.classList.toggle("daylight-mat", state.daylightMat);
-    els.matModeLabel.textContent = state.daylightMat ? "深色底板" : "实景白板";
+    els.matModeLabel.textContent = state.daylightMat ? "深墨衬板" : "羊皮纸板";
     requestRender();
   });
 
-  // 成品尺寸豆子规格切换
   document.querySelectorAll(".spec-mini-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.beadSpec = btn.dataset.spec;
@@ -1061,7 +1886,6 @@ function bindEvents() {
     });
   });
 
-  // 顶部四视图切换 (同步 aria-selected)
   document.querySelectorAll(".view-switcher .seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const prevMode = state.viewMode;
@@ -1079,7 +1903,6 @@ function bindEvents() {
     });
   });
 
-  // 熟练度三档切换 (同步 aria-selected)
   document.querySelectorAll(".skill-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       state.skillLevel = tab.dataset.skill;
@@ -1093,7 +1916,6 @@ function bindEvents() {
     });
   });
 
-  // 工具条、全色卡选择器、撤销重做与缩放
   document.querySelectorAll(".tool-btn").forEach((btn) => {
     btn.addEventListener("click", () => setTool(btn.dataset.tool));
   });
@@ -1117,7 +1939,7 @@ function bindEvents() {
     els.btnBrushColor.setAttribute("aria-expanded", "false");
     const pat = currentPattern();
     if (pat) {
-      updateBrushColorChip(pat);
+      updateBrushColorChip(pat, true);
       renderBomList(pat);
       renderFullPaletteGrid(pat);
     }
@@ -1155,7 +1977,6 @@ function bindEvents() {
     { passive: false }
   );
 
-  // 画布鼠标按下（支持按住空格键在画笔模式下临时抓手平移！）
   els.canvasViewport.addEventListener("mousedown", (e) => {
     if (e.button === 1 || state.activeTool === "pan" || state.spacePressed) {
       state.isDragging = true;
@@ -1208,7 +2029,6 @@ function bindEvents() {
     }
   });
 
-  // BOM 筛选、排序及三大独立操作（勾选完成 / 选作画笔颜色 / 单色聚光灯高亮）
   els.bomSearchInput.addEventListener("input", () => {
     state.bomFilter = els.bomSearchInput.value;
     if (currentPattern()) renderBomList(currentPattern());
@@ -1250,12 +2070,12 @@ function bindEvents() {
     if (selectBtn) {
       const pidx = parseInt(selectBtn.dataset.select, 10);
       state.selectedColorIdx = pidx;
-      updateBrushColorChip(pat);
+      updateBrushColorChip(pat, true);
       renderBomList(pat);
       renderFullPaletteGrid(pat);
       if (state.activeTool === "pan") {
         const cinfo = pat.palette_lookup[String(pidx)];
-        showToast(`已选中画笔色号 ${cinfo.code} ${cinfo.name}（按 B 键即可点涂改色，点击右侧靶心图标可单色高亮）`);
+        showToast(`已选中画笔色号 ${cinfo.code} ${cinfo.name}（按 B 键即可点涂改色）`);
       }
     }
   });
@@ -1270,9 +2090,14 @@ function bindEvents() {
     requestRender();
   });
 
-  // 全键盘快捷键支持 (Ctrl+Z / Ctrl+Y / 空格抓手 / H B E I / + - 0 / Esc)
   window.addEventListener("keydown", (e) => {
-    const inInput = e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA";
+    if (els.agentConfigDialog.open || els.wechatClawDialog.open) return;
+    const tag = e.target?.tagName || "";
+    const inInput =
+      tag === "INPUT" ||
+      tag === "SELECT" ||
+      tag === "TEXTAREA" ||
+      tag.startsWith("HOSE-");
     if (inInput) {
       if (e.key === "Escape") e.target.blur();
       return;
@@ -1322,7 +2147,6 @@ function bindEvents() {
     }
   });
 
-  // 导出 PNG 图纸（忠实对应当前所选视图：立体圆环 / 熨烫成品 / 施工色号）与 Excel 清单
   els.btnExportPng.addEventListener("click", () => exportFile("png"));
   els.btnExportXlsx.addEventListener("click", () => exportFile("xlsx"));
 }
@@ -1386,10 +2210,19 @@ function startDesktopHeartbeat() {
     es.onerror = () => {
       sseConnected = false;
     };
+    es.addEventListener("wechat_status", (ev) => {
+      try {
+        applyWechatStatus(JSON.parse(ev.data));
+      } catch (_) {}
+    });
+    es.addEventListener("wechat_sync", (ev) => {
+      try {
+        handleInboundWechatSync(JSON.parse(ev.data));
+      } catch (_) {}
+    });
     window._beadSessionStream = es;
   } catch (_) {}
 
-  // 仅当 SSE 未建立连接时才使用 HTTP 轮询兜底，避免冗余请求
   setInterval(() => {
     if (!sseConnected) {
       fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
